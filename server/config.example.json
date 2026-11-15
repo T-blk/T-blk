@@ -1,0 +1,17 @@
+{
+  "port": 8080,
+  "width": 758,
+  "height": 1024,
+  "timezone": "Asia/Ho_Chi_Minh",
+  "font_regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+  "font_bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  "title": "Bảng tin",
+  "weather": {
+    "enabled": true,
+    "city": "TP. Hồ Chí Minh",
+    "latitude": 10.8231,
+    "longitude": 106.6297
+  },
+  "todo_file": "todo.txt",
+  "quote": "Ship nhỏ, ship đều."
+}

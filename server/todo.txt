@@ -1,0 +1,5 @@
+# Mỗi dòng là một việc. Dòng bắt đầu bằng # bị bỏ qua.
+# Sửa file này, Kindle sẽ cập nhật ở lần làm mới kế tiếp.
+Họp team 9:30
+Review báo cáo tuần
+Gọi khách hàng A
