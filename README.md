@@ -119,6 +119,14 @@ cập nhật giờ, đèn ban ngày/ban đêm, đảo màu ban đêm, số ngày
 - `NIGHT_START` / `NIGHT_END` / `REFRESH_NIGHT_MIN`: khung giờ ban đêm.
 - `ROTATE_LAND`, `LAND_TOUCH_INVERT`, `TOUCH_*`: hiệu chỉnh khi xoay ngang hoặc khi chạm bị lệch.
 
+### Cập nhật không dây (OTA)
+Từ bản 2026.11.16 trở đi, không cần cắm USB để cập nhật nữa:
+- Trên Kindle: **Cài đặt → Cập nhật phần mềm** → chạm để kiểm tra → **CÀI ĐẶT**. Hoặc bấm scriptlet **Dashboard - Cap nhat** trong thư viện.
+- Dashboard tự kiểm tra mỗi ngày một lần. Khi có bản mới, biểu tượng bánh răng có thêm một chấm đen.
+- Bản mới được tải từ thư mục `ota/` của repo (`raw.githubusercontent.com`), sau đó kiểm tra kích thước, tính toàn vẹn gzip và sha256. `dash.conf`, `settings.conf`, `todo.txt`, `photos/`, `clock/` được giữ nguyên.
+- Nếu bản mới không vẽ được màn hình trong 3 phút, máy tự quay lại bản cũ. Muốn quay lại bằng tay thì bấm **Dashboard - Quay lai ban cu**. Log ghi ở `/mnt/us/dashboard_update.log`.
+- Phát hành bản mới: `sh tools/make_ota.sh "ghi chú"` rồi commit và push thư mục `ota/`.
+
 ### Tự chạy khi khởi động
 Bấm **Dashboard - Tu chay: Bat** (cần làm một lần). Từ đó, mỗi lần Kindle
 khởi động thì 45 giây sau dashboard tự bật. Muốn tắt: bấm

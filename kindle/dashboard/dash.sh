@@ -20,6 +20,8 @@ load_conf() {
 }
 load_conf
 . "$DIR/lib/icons.sh"
+DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
+UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
 CALDIR=/tmp/dash_cal
@@ -87,11 +89,16 @@ DATA_CHANGED=0
 update_data() {
   need=0
   due "$WX" "$WEATHER_MIN" && need=1
+  [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440 && need=1
   [ "${TIME_SYNC:-1}" = 1 ] && due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" && need=1
   [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN" && need=1
   [ $need = 1 ] || return 0
   wifi_on || { log "no wifi"; return 1; }
   time_sync
+  if [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440; then
+    r=$(sh "$DIR/update.sh" --check 2>/dev/null); date +%s > /tmp/dash_otacheck; log "update check: $r"
+    case "$r" in available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;; esac
+  fi
   if due "$WX" "$WEATHER_MIN"; then
     q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=1"
     fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"'
@@ -343,6 +350,7 @@ draw_header() {
       txt 30 20 $B_LPLUS "$I_BRIGHT" s; txt 26 22 $(( B_LPLUS + 32 )) "+" b
     fi
     txt 34 18 $B_GEAR "$I_GEAR" s
+    [ -n "$UPD_AVAIL" ] && box 16 $(( B_GEAR + 30 )) 10 10        # chấm báo có bản mới
     txt 34 18 $B_HOME "$I_HOME" s
   fi
   box 72 40 $(( W - 80 )) 2
@@ -517,7 +525,8 @@ LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
 LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
 NIGHT_INVERT|Đảo màu ban đêm|0=Tắt;1=Bật (thử)
 DAYS_AHEAD|Sự kiện trong|7=7 ngày;14=14 ngày;30=30 ngày
-@PICK|Chọn ảnh từ danh sách…|'
+@PICK|Chọn ảnh từ danh sách…|
+@UPDATE|Cập nhật phần mềm|'
 
 save_setting() { # KEY VALUE
   touch "$SETTINGS"
@@ -535,7 +544,7 @@ setting_next() { # KEY OPTIONS -> giá trị kế tiếp
   echo "$2" | tr ';' '\n' | awk -F'=' -v v="$v" '{k[NR]=$1} $1==v{p=NR} END{n=(p%NR)+1; print k[n]}'
 }
 settings_geom() {
-  SROW_H=54; SY0=92
+  SROW_H=52; SY0=90
   if [ $W -gt $H ]; then SCOLS=2; SCOLW=$(( (W - 80) / 2 )); else SCOLS=1; SCOLW=$(( W - 80 )); fi
   SPER=$(( (H - SY0 - 20) / SROW_H ))
 }
@@ -551,7 +560,10 @@ render_settings() {
     x=$(( 40 + col * SCOLW )); y=$(( SY0 + row * SROW_H ))
     vw=$(( SCOLW * 45 / 100 ))
     txt 26 $(( y + 12 )) $(( x + 4 )) "$label" "" $(( SCOLW - vw - 20 )) 40
-    if [ "$key" = "@PICK" ]; then txt 26 $(( y + 12 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    if [ "$key" = "@UPDATE" ]; then
+      ut="Bản $DASH_VER"; [ -n "$UPD_AVAIL" ] && ut="Có bản mới $UPD_AVAIL"
+      txt 26 $(( y + 12 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 40
+    elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 12 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
     else txt 26 $(( y + 12 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 40; fi
     box $(( y + SROW_H - 2 )) $x $(( SCOLW - 16 )) 1
     i=$((i + 1))
@@ -567,6 +579,17 @@ settings_tap() { # x y
   line=$(echo "$SETTINGS_DEF" | sed -n "${idx}p"); [ -n "$line" ] || return
   key=${line%%|*}; opts=${line##*|}
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
+  if [ "$key" = "@UPDATE" ]; then
+    "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang kiểm tra bản mới…" >/dev/null 2>&1
+    r=$(sh "$DIR/update.sh" --check 2>/dev/null); date +%s > /tmp/dash_otacheck; log "update check: $r"
+    UPD_MSG=""; UPD_AVAIL=""
+    case "$r" in
+      available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;;
+      uptodate*) UPD_MSG="Bạn đang dùng bản mới nhất ($DASH_VER)." ;;
+      *) UPD_MSG="Không kiểm tra được: ${r#error }" ;;
+    esac
+    VIEW=update; return
+  fi
   old=$(setting_value "$key")
   nv=$(setting_next "$key" "$opts"); save_setting "$key" "$nv"; eval "$key=\"$nv\""
   if [ "$key" = ORIENTATION ]; then
@@ -634,6 +657,39 @@ render_server() {
     if [ "$1" = 1 ]; then eips -f -g /tmp/dashboard.png; else eips -g /tmp/dashboard.png; fi
   else eips 1 1 "Mat ket noi server $(date +%H:%M)  "; log "server fetch failed: $SERVER_URL"; fi
 }
+# ---------- Cập nhật phần mềm ----------
+render_update() {
+  "$FB" -q -b -k >/dev/null 2>&1
+  txt 34 18 40 "$I_REFRESH" s; txt 34 18 92 "Cập nhật phần mềm" b
+  txt 30 22 $(( W - 150 )) "$I_CHECK" s; txt 30 20 $(( W - 112 )) "Xong" b
+  box 72 40 $(( W - 80 )) 2
+  txt 28 110 40 "Bản đang dùng: $DASH_VER"
+  if [ -n "$UPD_AVAIL" ]; then
+    txt 34 170 40 "Có bản mới: $UPD_AVAIL" b
+    txt 26 230 40 "$UPD_NOTES" "" $(( W - 80 )) 300
+    cx=$(( W / 2 )); by=$(( H - 300 ))
+    frame $by $(( cx - 200 )) 400 120 5
+    TXTOPT="-m"; txt 44 $(( by + 32 )) 0 "CÀI ĐẶT" b; TXTOPT=""
+    txt 22 $(( by + 140 )) 40 "Mất khoảng 1–2 phút. Cài đặt, link lịch và ảnh được giữ nguyên." "" $(( W - 80 )) 70
+    txt 22 $(( by + 200 )) 40 "Nếu bản mới lỗi, máy tự quay lại bản cũ." "" $(( W - 80 )) 40
+  else
+    txt 30 180 40 "$UPD_MSG" "" $(( W - 80 )) 200
+  fi
+  refresh 1
+}
+update_tap() { # x y
+  if [ $2 -le 80 ]; then [ $1 -ge $(( W - 200 )) ] && VIEW=settings; return; fi
+  [ -n "$UPD_AVAIL" ] || return
+  by=$(( H - 300 )); cx=$(( W / 2 ))
+  if [ $1 -ge $(( cx - 220 )) ] && [ $1 -le $(( cx + 220 )) ] && [ $2 -ge $(( by - 20 )) ] && [ $2 -le $(( by + 140 )) ]; then
+    log "user started update to $UPD_AVAIL"
+    "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang cập nhật lên bản $UPD_AVAIL…" >/dev/null 2>&1
+    rm -f /tmp/dash.pid
+    nohup sh "$DIR/update.sh" --install --restart >> "$(dirname "$DIR")/dashboard_update.log" 2>&1 &
+    exit 0
+  fi
+}
+
 # ---------- Xác nhận hướng màn hình ----------
 render_confirm() {
   left=$(( CONFIRM_DEADLINE - $(date +%s) )); [ $left -lt 0 ] && left=0
@@ -665,7 +721,7 @@ confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
 draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
-    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;;
+    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;;
     *) render_main "$1" ;;
   esac
 }
@@ -707,6 +763,7 @@ handle_tap() {
   LAST_TOUCH=$(date +%s)
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
+    update) update_tap $x $y; return ;;
     confirm) confirm_tap $x $y; return ;;
     settings) settings_tap $x $y; return ;;
     pick) pick_tap $x $y; return ;;
