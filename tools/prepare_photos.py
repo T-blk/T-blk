@@ -11,7 +11,9 @@ Tạo 4 cỡ ảnh PNG thang xám (định dạng `eips -g` đọc được):
     python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 """
 import os
+import re
 import sys
+import unicodedata
 
 from PIL import Image, ImageOps, ImageEnhance
 
@@ -29,7 +31,20 @@ def collect(paths):
             yield p
 
 
-def convert(src, dst_dir, idx):
+def out_name(src, used):
+    """Tên ảnh ổn định theo tên file gốc (ASCII, không dấu cách) để ảnh "cố định" không bị đổi."""
+    stem = os.path.splitext(os.path.basename(src))[0]
+    stem = stem.replace("đ", "d").replace("Đ", "D")
+    stem = unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode()
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_")[:40] or "anh"
+    name, k = stem, 2
+    while name.lower() in used:
+        name, k = f"{stem}_{k}", k + 1
+    used.add(name.lower())
+    return name + ".png"
+
+
+def convert(src, dst_dir, name):
     img = Image.open(src)
     img = ImageOps.exif_transpose(img).convert("L")
     img = ImageEnhance.Contrast(img).enhance(1.15)
@@ -40,7 +55,7 @@ def convert(src, dst_dir, idx):
             out = ImageOps.pad(img, box, Image.LANCZOS, color=255)   # giữ trọn ảnh, viền trắng
         else:
             out = ImageOps.fit(img, box, Image.LANCZOS)              # cắt giữa cho đầy khung
-        out.save(os.path.join(d, f"photo_{idx:03d}.png"), "PNG", optimize=True)
+        out.save(os.path.join(d, name), "PNG", optimize=True)
 
 
 def main():
@@ -50,11 +65,13 @@ def main():
     *srcs, dst = sys.argv[1:]
     os.makedirs(dst, exist_ok=True)
     n = 0
+    used = set()
     for src in collect(srcs):
         try:
-            convert(src, dst, n + 1)
+            name = out_name(src, used)
+            convert(src, dst, name)
             n += 1
-            print(f"-> {os.path.basename(src)}  (photo_{n:03d})")
+            print(f"-> {os.path.basename(src)}  ->  {name}")
         except Exception as e:  # HEIC cần pillow-heif: pip3 install pillow-heif
             print(f"bỏ qua {src}: {e}")
     print(f"Xong {n} ảnh.")

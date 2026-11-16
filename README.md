@@ -52,12 +52,16 @@ Hỗ trợ: sự kiện thường, sự kiện cả ngày, giờ UTC, lặp ngà
 phức tạp như "thứ Hai đầu tiên của tháng".
 
 ### Ảnh
-```bash
-python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
-```
-Script tạo 5 cỡ ảnh thang xám: khung dọc, khung ngang, toàn màn hình dọc, toàn màn hình ngang, và ảnh nhỏ cho trang chọn ảnh.
-Mặt đồng hồ kim sinh bằng `python3 tools/make_clock_faces.py kindle/dashboard/clock 190`. Sau đó chép thư
-mục `photos` vào Kindle. Ảnh HEIC từ iPhone cần cài thêm `pip3 install pillow-heif`.
+Cách dễ nhất: bỏ ảnh vào thư mục **Ảnh/cho-kindle** (`~/Pictures/cho-kindle`),
+thoát dashboard, cắm Kindle vào Mac, rồi **nhấp đúp `tools/them-anh.command`**.
+Script tạo 5 cỡ ảnh thang xám (khung dọc, khung ngang, toàn màn hình dọc,
+toàn màn hình ngang, ảnh nhỏ cho trang chọn ảnh), chép sang Kindle rồi tự tháo
+Kindle. Tên ảnh lấy theo tên file gốc (bỏ dấu), nên ảnh đã chọn "cố định" vẫn
+giữ nguyên khi thêm ảnh mới. Muốn xoá ảnh khỏi Kindle: xoá nó khỏi thư mục
+`cho-kindle` rồi chạy lại.
+
+Chạy tay: `python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos`.
+Mặt đồng hồ kim: `python3 tools/make_clock_faces.py kindle/dashboard/clock 190`.
 
 KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 **scriptlet**: file `.sh` trong `documents/` hiện như sách, bấm vào là chạy.
