@@ -31,10 +31,32 @@ python3 dashboard_server.py                         # chạy server :8080
 
 ## 2. Kindle (PW2 firmware 5.12.2.2, đã jailbreak bằng WinterBreak2)
 
-Mặc định **Kindle tự vẽ dashboard**, không cần máy tính: giờ và ngày lấy
-từ đồng hồ của Kindle, thời tiết lấy thẳng từ Open-Meteo qua Wi-Fi, việc cần
-làm đọc từ `dashboard/todo.txt`. Chữ được vẽ bằng FBInk (lấy từ gói KOReader)
-với phông Noto Sans, có đầy đủ dấu tiếng Việt.
+Mặc định **Kindle tự vẽ dashboard**, không cần máy tính:
+- đồng hồ, thứ và ngày (đồng hồ của Kindle, cập nhật mỗi phút);
+- **lịch tháng để bàn**, có gạch chân dưới những ngày có sự kiện;
+- **sự kiện Apple Calendar** (link ICS công khai của iCloud, hoặc Google Calendar);
+- thời tiết (Open-Meteo, lấy qua Wi-Fi);
+- **ảnh của bạn**, đổi theo chu kỳ (`dashboard/photos/`).
+
+Chữ được vẽ bằng FBInk (lấy từ gói KOReader) với phông Noto Sans, có đầy đủ
+dấu tiếng Việt. Ảnh được vẽ bằng `eips`.
+
+### Lịch Apple (iCloud)
+Trên Mac, mở app **Lịch**, chuột phải vào lịch ở cột trái → **Chia sẻ lịch…**
+→ tick **Lịch công khai** → sao chép link `webcal://…`. Dán link vào `ICS_URL`
+trong `dashboard/dash.conf`. Muốn lấy nhiều lịch thì dán nhiều link, cách nhau
+bằng dấu cách. Lưu ý: ai có link cũng xem được lịch đó.
+
+Hỗ trợ: sự kiện thường, sự kiện cả ngày, giờ UTC, lặp ngày/tuần
+(BYDAY)/tháng/năm, INTERVAL, COUNT, UNTIL, EXDATE. Chưa hỗ trợ các quy tắc lặp
+phức tạp như "thứ Hai đầu tiên của tháng".
+
+### Ảnh
+```bash
+python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
+```
+Script thu nhỏ ảnh về 298x344, chuyển thang xám và lưu PNG. Sau đó chép thư
+mục `photos` vào Kindle. Ảnh HEIC từ iPhone cần cài thêm `pip3 install pillow-heif`.
 
 KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 **scriptlet**: file `.sh` trong `documents/` hiện như sách, bấm vào là chạy.
