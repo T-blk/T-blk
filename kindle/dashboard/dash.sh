@@ -73,7 +73,7 @@ update_data() {
       u=$(echo "$u" | sed 's#^webcal://#https://#')
       fetch "$u" "$CALDIR/$k.ics" "BEGIN:VCALENDAR" && echo "$label" > "$CALDIR/$k.label"
     done
-    touch "$CALDIR/stamp"
+    date +%s > "$CALDIR/stamp"
   fi
   DATA_CHANGED=1
 }
@@ -561,8 +561,10 @@ draw() {
 # ---------- Chạm ----------
 go_home() {
   log "go home ($1)"
+  touch /tmp/dash_stop; rm -f /tmp/dash.pid          # báo bộ đọc cảm ứng dừng hẳn
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
+  sleep 1; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   [ "$(cat "$ROTF" 2>/dev/null)" != 0 ] && set_rotation 0
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
@@ -637,6 +639,7 @@ if [ "$1" = "--once" ]; then
 fi
 
 log "start (pid $$, $(uname -r 2>/dev/null))"
+rm -f /tmp/dash_stop
 echo $$ > /tmp/dash.pid
 rm -f "$TAPQ"
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi

@@ -27,7 +27,9 @@ devices() {
 }
 
 go_home() {
+  [ -f /tmp/dash.pid ] || { log "ignore $1: dashboard not running"; exit 0; }
   log "go home ($1)"
+  touch /tmp/dash_stop
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
   [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
@@ -54,7 +56,9 @@ watch_dev() {
   dev=$1; mode=$2
   X=-1; Y=-1; down=0; last=0
   while :; do
+    [ "$mode" = watch ] && [ -f /tmp/dash_stop ] && exit 0
     set -- $(read_ev "$dev")
+    [ "$mode" = watch ] && { [ -f /tmp/dash_stop ] || [ ! -f /tmp/dash.pid ]; } && exit 0
     [ $# -ge 5 ] && shift            # od có thể in thêm cột offset
     [ $# -lt 4 ] && { sleep 1; continue; }
     w3=$3; val=$4
