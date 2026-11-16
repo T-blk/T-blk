@@ -30,10 +30,10 @@ go_home() {
   [ -f /tmp/dash.pid ] || { log "ignore $1: dashboard not running"; exit 0; }
   log "go home ($1)"
   touch /tmp/dash_stop
-  [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
+  o=$(cat /tmp/dash_rot_orig 2>/dev/null); c=$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)
+  [ -n "$o" ] && [ "$c" != "$o" ] && echo "$o" > /sys/class/graphics/fb0/rotate 2>/dev/null
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
-  [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
   rm -f /tmp/dash.pid
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null

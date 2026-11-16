@@ -120,6 +120,10 @@ parse_weather() {
 
 # ---------- Hướng màn hình ----------
 set_rotation() { [ -w "$ROTF" ] && echo "$1" > "$ROTF" 2>/dev/null; }
+restore_rotation() { # trả lại đúng giá trị lúc dashboard bắt đầu (chỉ khi đã bị đổi)
+  o=$(cat /tmp/dash_rot_orig 2>/dev/null); c=$(cat "$ROTF" 2>/dev/null)
+  [ -n "$o" ] && [ "$c" != "$o" ] && set_rotation "$o"
+}
 apply_orientation() {
   ROT=0; [ "$ORIENTATION" = ngang ] && ROT=$ROTATE_LAND
   if [ $((ROT % 2)) = 1 ]; then W=1024; H=758; else W=758; H=1024; fi
@@ -489,7 +493,6 @@ settings_tap() { # x y
   key=${line%%|*}; opts=${line##*|}
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
   nv=$(setting_next "$key" "$opts"); save_setting "$key" "$nv"; eval "$key=\"$nv\""
-  if [ "$key" = ORIENTATION ]; then apply_orientation; set_rotation $ROT; fi
   [ "$key" = PHOTO_MODE ] && [ "$nv" = fixed ] && [ -z "$PHOTO_FIXED" ] && { VIEW=pick; PICKPAGE=0; }
 }
 
@@ -563,7 +566,7 @@ draw() {
 go_home() {
   log "go home ($1)"
   touch /tmp/dash_stop; rm -f /tmp/dash.pid          # báo bộ đọc cảm ứng dừng hẳn
-  [ "$(cat "$ROTF" 2>/dev/null)" != 0 ] && set_rotation 0
+  restore_rotation
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   sleep 1; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
@@ -650,9 +653,11 @@ log "framework stopped"
 sleep 2
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
-# bố cục ngang chỉ bật được qua dash.conf (thử nghiệm); luôn trả màn hình về dọc nếu đang bị xoay
-if [ "$ROT" != 0 ]; then set_rotation "$ROT"
-elif [ "$(cat "$ROTF" 2>/dev/null)" != 0 ]; then set_rotation 0; log "reset fb rotation to 0"; fi
+# KHÔNG đụng vào xoay màn hình, trừ khi bật bố cục ngang trong dash.conf (thử nghiệm).
+# Ghi nhớ giá trị gốc để trả lại đúng như cũ khi thoát.
+ROT_ORIG=$(cat "$ROTF" 2>/dev/null); echo "$ROT_ORIG" > /tmp/dash_rot_orig
+log "fb rotate at start: ${ROT_ORIG:-?}"
+[ "$ORIENTATION" = ngang ] && set_rotation "$ROT"
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 
@@ -662,7 +667,7 @@ while true; do
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
-    log "low battery, stopping"; set_rotation 0; exit 0
+    log "low battery, stopping"; restore_rotation; exit 0
   fi
   [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
