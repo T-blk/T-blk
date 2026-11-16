@@ -38,12 +38,23 @@ def load_config(path):
         return json.load(f)
 
 
+FONT_CANDIDATES = {
+    False: ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/Library/Fonts/Arial.ttf"],
+    True: ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+           "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+           "/Library/Fonts/Arial Bold.ttf"],
+}
+
+
 def font(cfg, size, bold=False):
-    path = cfg.get("font_bold" if bold else "font_regular")
-    try:
-        return ImageFont.truetype(path, size)
-    except (OSError, TypeError):
-        return ImageFont.load_default(size)
+    """Config font first, then common Linux/macOS fonts with Vietnamese glyphs."""
+    paths = [cfg.get("font_bold" if bold else "font_regular")] + FONT_CANDIDATES[bold]
+    for path in paths:
+        if path and os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default(size)
 
 
 def fetch_weather(cfg):

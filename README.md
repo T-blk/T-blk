@@ -29,29 +29,35 @@ python3 dashboard_server.py                         # chạy server :8080
 - Danh sách việc lấy từ `server/todo.txt`. Sửa file là lần làm mới sau sẽ cập nhật.
 - Muốn có widget mới thì viết thêm vào hàm `render()`.
 
-## 2. Kindle
+## 2. Kindle (PW2 firmware 5.12.2.2, đã jailbreak bằng WinterBreak2)
 
-1. **Sạc cho pin sống lại trước** (xem phần cứu pin ở dưới).
-2. **Jailbreak**: vào Settings > Device Info xem phiên bản firmware, rồi làm
-   theo hướng dẫn cho đúng phiên bản đó tại https://kindlemodding.org.
-3. Cài **KUAL** và **MRPI** (hướng dẫn có trên cùng trang).
-4. Cắm USB vào máy tính, chép thư mục `kindle/extensions/dashboard` vào
-   `extensions/` trên ổ Kindle.
-5. Sửa `extensions/dashboard/dash.conf`: đặt `SERVER_URL` thành IP LAN của
-   máy chạy server.
-6. Mở KUAL > Dashboard > **Vẽ 1 lần (test)**. Hình hiện lên đúng thì chọn
-   **Bật dashboard**.
-7. Muốn quay về đọc sách thì chọn KUAL > Dashboard > **Tắt dashboard**. Nếu
-   đã bị khoá ngoài màn hình thì giữ nút nguồn 20–40 giây để khởi động lại.
+Firmware này dùng bộ jailbreak "hdnext". KUAL **không chạy**, nên dashboard
+được làm dưới dạng **scriptlet**: file `.sh` đặt trong `documents/` sẽ hiện
+trong thư viện như một cuốn sách, bấm vào là chạy.
+
+1. Cắm Kindle vào Mac, chép file vào Kindle:
+   ```bash
+   ditto --norsrc --noextattr --noacl kindle/dashboard /Volumes/Kindle/dashboard
+   ditto --norsrc --noextattr --noacl kindle/documents /Volumes/Kindle/documents
+   find /Volumes/Kindle -name '._*' -delete
+   ```
+2. Sửa `SERVER_URL` trong `/Volumes/Kindle/dashboard/dash.conf` thành IP của
+   Mac (`ipconfig getifaddr en0`), rồi chạy `diskutil eject /Volumes/Kindle`.
+3. Trên Kindle (bật Wi-Fi, cùng mạng với Mac), trong thư viện:
+   - **Dashboard - Test**: vẽ 1 lần, giao diện Kindle vẫn chạy. Log ghi vào `dashboard/test.log`.
+   - **Dashboard - Bat**: tắt giao diện Kindle, làm mới liên tục.
+   - **Dashboard - Tat**: tắt dashboard (khi giao diện Kindle còn bấm được).
+4. **Thoát khi đang ở chế độ dashboard**: giữ nút nguồn khoảng 20 giây để
+   khởi động lại. Dashboard không tự chạy khi máy khởi động.
 
 ## Pin
 
-Ở chế độ `DEEP_SLEEP=1`, giữa hai lần làm mới Kindle ngủ sâu và tắt Wi-Fi.
+Mặc định `DEEP_SLEEP=0`. Nếu bật `DEEP_SLEEP=1` (chưa thử trên máy thật), giữa hai lần làm mới Kindle ngủ sâu và tắt Wi-Fi.
 Làm mới 10 phút/lần thì pin trụ được cỡ vài ngày đến 1–2 tuần, tuỳ tình
 trạng pin. Muốn dùng 24/7 thì cứ để cắm sạc. Nếu máy không tự thức dậy, đổi
 `RTC_DEV` sang `/dev/rtc0` hoặc đặt `DEEP_SLEEP=0`.
 
 ## Gỡ lỗi
 
-- Log nằm ở `extensions/dashboard/dash.log`.
+- Log nằm ở `dashboard/dash.log` và `dashboard/test.log` trên Kindle.
 - Kindle phải vào được `SERVER_URL`. Kiểm tra firewall trên máy chạy server.

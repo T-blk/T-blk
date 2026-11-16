@@ -1,9 +1,0 @@
-{
-  "items": [
-    {"name": "Dashboard", "priority": 0, "items": [
-      {"name": "Bật dashboard", "priority": 1, "action": "bin/start.sh"},
-      {"name": "Tắt dashboard (về giao diện Kindle)", "priority": 2, "action": "bin/stop.sh"},
-      {"name": "Vẽ 1 lần (test)", "priority": 3, "action": "bin/dash.sh", "params": "--once"}
-    ]}
-  ]
-}

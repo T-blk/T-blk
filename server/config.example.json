@@ -3,8 +3,8 @@
   "width": 758,
   "height": 1024,
   "timezone": "Asia/Ho_Chi_Minh",
-  "font_regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-  "font_bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  "font_regular": "",
+  "font_bold": "",
   "title": "Bảng tin",
   "weather": {
     "enabled": true,
