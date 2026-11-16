@@ -5,7 +5,7 @@
 # Chỉ dùng ở bố cục dọc; khi xoay ngang chỉ có trang chính.
 
 PAGE=main
-page_list() { if [ $W -gt $H ]; then echo main; else echo "${PAGE_LIST:-main tin bloc dem}"; fi; }
+page_list() { if [ $W -gt $H ]; then echo main; else echo "${PAGE_LIST:-main tin bloc dem pomo news}"; fi; }
 page_next() { # $1 = 1 (trang sau) | -1 (trang trước)
   dir=$1; set -- $(page_list); n=$#; i=1; cur=1
   for p in "$@"; do [ "$p" = "$PAGE" ] && cur=$i; i=$((i + 1)); done
@@ -14,6 +14,7 @@ page_next() { # $1 = 1 (trang sau) | -1 (trang trước)
 }
 auto_page() { # khi không có ai chạm: về trang mặc định, ban đêm tự chuyển trang đêm
   [ "$LAST_TOUCH" = 0 ] || return 0
+  pomo_active && { [ "$PAGE" != pomo ] && { PAGE=pomo; LAST_KEY=""; }; return 0; }
   p="${DEFAULT_PAGE:-main}"
   is_night && [ "${NIGHT_PAGE:-dem}" != giu ] && p="${NIGHT_PAGE:-dem}"
   case " $(page_list) " in *" $p "*) ;; *) p=main ;; esac
@@ -155,7 +156,7 @@ render_tin() {
   box 628 40 678 2
 
   y=642
-  awk -F'|' -v TD="$TD" -v NOW="$NOWMIN" '($2 > TD) || ($2 == TD && ($4 == 1 || $3 >= NOW - 60))' "$EV" | head -6 | while IFS='|' read -r key day min all label sum; do
+  awk -F'|' -v TD="$TD" -v NOW="$NOWMIN" '($2 > TD) || ($2 == TD && ($4 == 1 || $3 >= NOW - 60))' "$EV" | head -3 | while IFS='|' read -r key day min all label sum; do
     if [ "$day" = "$TD" ]; then w="Hôm nay"; elif [ "$day" = $((TD + 1)) ]; then w="Ngày mai"; else w="$(pick "$WD_SHORT" $(( (day + 4) % 7 ))) $(day_dm "$day")"; fi
     if [ "$all" = 1 ]; then t="cả ngày"; else t=$(printf '%02d:%02d' $((min / 60)) $((min % 60))); fi
     [ -n "$label" ] && sum="[$label] $sum"
@@ -164,6 +165,7 @@ render_tin() {
     txt 32 $y 296 "$sum" "" $(( W - 336 )) 46
     y=$(( y + 60 ))
   done
+  NEWS_CARD=""; draw_news_card 826 40 678 186
   refresh "$1"
   log "render tin: done"
 }

@@ -100,6 +100,8 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 - **Bảng tin**: Wi-Fi/pin/đang sạc, AQI, thanh tiến trình ngày, ô **sự kiện kế tiếp** có đếm ngược, lịch tuần, danh sách sự kiện.
 - **Lịch bloc** (tờ lịch xé): số ngày lớn, âm lịch, **can chi ngày/tháng/năm**, **giờ hoàng đạo**, **tiết khí**, ca dao mỗi ngày (`lib/quotes.txt`), lời chúc dịp lễ.
 - **Ban đêm**: đồng hồ lớn, **dự báo 5 ngày**, giờ mặt trời mọc/lặn, AQI. Mặc định tự chuyển sang trang này trong khung giờ ban đêm.
+- **Pomodoro**: chạm **BẮT ĐẦU** để vào 25 phút tập trung, sau đó nghỉ 5 phút. Cứ 4 phiên thì nghỉ dài 15 phút. Chạm vào số phút để đổi giữa các mức 25, 50, 15, 45. Hết giờ màn hình và đèn nền nháy 3 lần (PW2 không có loa). Trong lúc đang chạy, dashboard không tự chuyển sang trang khác.
+- **Tin tức**: lấy RSS của VnExpress và Tuổi Trẻ (`NEWS_FEEDS` trong `dash.conf`), 30 phút tải lại một lần. Trang Bảng tin có ô tin nổi bật, **tự đổi tin mỗi 5 phút**. **Chạm vào để đọc toàn bài**: chạm nửa trái hoặc nửa phải để lật trang, chạm thanh trên cùng để quay lại.
 - Cài đặt có **Trang mặc định** và **Trang ban đêm**. Sau `IDLE_RESET_MIN` phút không chạm, dashboard quay về trang mặc định. Ở bố cục ngang chỉ có Bảng chính.
 
 ### Chạm trên màn hình

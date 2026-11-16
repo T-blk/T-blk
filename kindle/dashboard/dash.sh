@@ -15,13 +15,15 @@ load_conf() {
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=so24}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
-  : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}"
+  : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
 load_conf
 . "$DIR/lib/icons.sh"
 DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/pages.sh"
+. "$DIR/lib/news.sh"
+. "$DIR/lib/pomo.sh"
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
@@ -91,6 +93,7 @@ update_data() {
   need=0
   due "$WX" "$WEATHER_MIN" && need=1
   [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440 && need=1
+  [ -n "$NEWS_FEEDS" ] && due "$NEWS_STAMP" "$NEWS_MIN" && need=1
   [ "${TIME_SYNC:-1}" = 1 ] && due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" && need=1
   [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN" && need=1
   [ $need = 1 ] || return 0
@@ -105,6 +108,7 @@ update_data() {
     fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"'
   fi
   fetch_aqi
+  fetch_news
   if [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN"; then
     mkdir -p "$CALDIR"; k=0
     for u in $ICS_URL; do
@@ -530,7 +534,7 @@ TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạc
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt
-DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm
+DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm;pomo=Pomodoro;news=Tin tức
 NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
@@ -799,7 +803,8 @@ draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
-    *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; *) render_main "$1" ;; esac ;;
+    reader) render_reader ;;
+    *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
 
@@ -840,6 +845,7 @@ handle_tap() {
   LAST_TOUCH=$(date +%s)
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
+    reader) reader_tap $x $y; return ;;
     choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
     confirm) confirm_tap $x $y; return ;;
@@ -851,7 +857,13 @@ handle_tap() {
       return ;;
   esac
   if [ "$PAGE" != main ]; then
-    [ $y -le 70 ] && page_header_tap $x
+    if [ $y -le 70 ]; then page_header_tap $x; return; fi
+    CY_TAP=$y
+    case "$PAGE" in
+      pomo) pomo_tap $x $y ;;
+      news) news_list_tap ;;
+      tin) set -- $NEWS_CARD; [ -n "$1" ] && [ $y -ge $1 ] && [ $y -le $(( $1 + $4 )) ] && open_reader "$5" ;;
+    esac
     return
   fi
   set_layout
@@ -881,7 +893,8 @@ handle_tap() {
 
 idle_reset() {
   [ $LAST_TOUCH = 0 ] && return
-  [ $(( $(date +%s) - LAST_TOUCH )) -ge $(( IDLE_RESET_MIN * 60 )) ] || return
+  lim=$IDLE_RESET_MIN; [ "$VIEW" = reader ] && lim=15
+  [ $(( $(date +%s) - LAST_TOUCH )) -ge $(( lim * 60 )) ] || return
   MOFF=0; EVPAGE=0; LAST_TOUCH=0; [ "$VIEW" != main ] && VIEW=main; LAST_KEY=""
 }
 
@@ -950,10 +963,12 @@ while true; do
   ensure_fw_stopped && TAPPED=1
   [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
+  pomo_tick && TAPPED=1
   [ "$VIEW" = main ] && auto_page
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
-  key="$(date +%Y%m%d%H)$(( $(date +%M | sed 's/^0//') / 15 ))"
+  mnow=$(date +%M | sed 's/^0//'); key="$(date +%Y%m%d%H)$(( mnow / 15 ))"
+  case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   if [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
     LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
@@ -965,6 +980,8 @@ while true; do
   TAPPED=0; DATA_CHANGED=0
   every=$REFRESH_MIN; is_night && every=$REFRESH_NIGHT_MIN
   s=$(date +%S); s=${s#0}; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
+  pc=$(pomo_sleep_cap); [ $pc -lt $secs ] && secs=$pc
+  pomo_running && [ $secs -gt 60 ] && secs=60
   sleep $secs & SP=$!
   while :; do
     process_taps && { TAPPED=1; kill $SP 2>/dev/null; break; }

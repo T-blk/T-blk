@@ -1,4 +1,4 @@
-version=2026.11.16.04
-sha256=e6b49d3416d54e035771e3e8395d41e7285f6273b77e0ce6911600faffec1036
-size=1275595
-notes=3 trang mới: Bảng tin, Lịch bloc (can chi, giờ hoàng đạo, tiết khí, ca dao), Ban đêm (dự báo 5 ngày, AQI). Vuốt để đổi trang.
+version=2026.11.16.05
+sha256=89da16fc186c7d7c18ee7fadda3dbcb49ef5bb56e27abf6697b1cafa38628b4b
+size=1280981
+notes=Pomodoro (nháy đèn khi hết giờ). Tin tức VnExpress/Tuổi Trẻ: đổi tin mỗi 5 phút, chạm để đọc toàn bài.
