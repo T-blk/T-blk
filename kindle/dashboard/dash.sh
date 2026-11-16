@@ -16,6 +16,7 @@ load_conf() {
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
+  : "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
@@ -29,6 +30,7 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/widgets.sh"
 . "$DIR/lib/layouts.sh"
 . "$DIR/lib/status.sh"
+modern_ok && mw_load
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
@@ -108,6 +110,8 @@ time_sync() {
 
 DATA_CHANGED=0
 update_data() {
+  [ "$NOWE" -lt "${NEXT_DATA:-0}" ] 2>/dev/null && return 0
+  NEXT_DATA=$(( ${NOWE:-0} + 120 ))
   need=0
   due "$WX" "$WEATHER_MIN" && need=1
   [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440 && need=1
@@ -234,10 +238,26 @@ image() { eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed
 
 WD_LONG="Chủ Nhật|Thứ Hai|Thứ Ba|Thứ Tư|Thứ Năm|Thứ Sáu|Thứ Bảy"
 WD_SHORT="CN|T2|T3|T4|T5|T6|T7"
-pick() { echo "$1" | cut -d'|' -f$(( $2 + 1 )); }
+pick() { _i=$(( $2 + 1 )); _o=$IFS; IFS='|'; set -- $1; IFS=$_o; eval "echo \"\${$_i}\""; }
+# ngày có sự kiện -> EVDAYS=" 20773 20774 ..." (1 lần đọc thay vì grep từng ô ngày)
+load_evdays() { EVDAYS=" $(awk -F'|' '{ if (!($2 in s)) { s[$2] = 1; printf "%s ", $2 } }' "$EV" 2>/dev/null)"; }
+is_evday() { case "$EVDAYS" in *" $1 "*) return 0 ;; esac; return 1; }
+# âm lịch cả tháng -> biến LND_<ngày> LNM_<ngày>
+load_lunar_month() { # tháng năm
+  [ "$LUNM_KEY" = "$1.$2" ] && return 0; LUNM_KEY="$1.$2"
+  while IFS='|' read -r _d _ld _lm; do eval "LND_$_d=$_ld; LNM_$_d=$_lm"; done <<EOT
+$(awk -v MODE=month -v M="$1" -v Y="$2" -f "$DIR/lib/lunar.awk")
+EOT
+}
 
-epoch_day() { awk -v y="$1" -v m="$2" -v d="$3" 'BEGIN{y-=(m<=2);era=int((y>=0?y:y-399)/400);yoe=y-era*400;doy=int((153*(m+(m>2?-3:9))+2)/5)+d-1;print era*146097+yoe*365+int(yoe/4)-int(yoe/100)+doy-719468}'; }
-day_dm() { awk -v z="$1" 'BEGIN{z+=719468;era=int((z>=0?z:z-146096)/146097);doe=z-era*146097;yoe=int((doe-int(doe/1460)+int(doe/36524)-int(doe/146096))/365);doy=doe-(365*yoe+int(yoe/4)-int(yoe/100));mp=int((5*doy+2)/153);d=doy-int((153*mp+2)/5)+1;m=mp+(mp<10?3:-9);printf "%d/%d",d,m}'; }
+# Ngày <-> số ngày từ 1970 (thuật toán Howard Hinnant), tính bằng số học của shell, không gọi awk
+epoch_day() { _y=$(( $1 - ($2 <= 2) )); _era=$(( _y / 400 )); _yoe=$(( _y - _era * 400 ))
+  _mp=$(( $2 > 2 ? $2 - 3 : $2 + 9 )); _doy=$(( (153 * _mp + 2) / 5 + $3 - 1 ))
+  echo $(( _era * 146097 + _yoe * 365 + _yoe / 4 - _yoe / 100 + _doy - 719468 )); }
+day_dm() { _z=$(( $1 + 719468 )); _era=$(( _z / 146097 )); _doe=$(( _z - _era * 146097 ))
+  _yoe=$(( (_doe - _doe / 1460 + _doe / 36524 - _doe / 146096) / 365 )); _doy=$(( _doe - (365 * _yoe + _yoe / 4 - _yoe / 100) ))
+  _mp=$(( (5 * _doy + 2) / 153 )); _d=$(( _doy - (153 * _mp + 2) / 5 + 1 )); _m=$(( _mp < 10 ? _mp + 3 : _mp - 9 ))
+  echo "$_d/$_m"; }
 
 # ---------- Trạng thái ----------
 MOFF=0; EVPAGE=0; PHOFF=0; VIEW=main; LADJ=0; LAST_TOUCH=0; LIGHT_NOW=""; NIGHT_WAS=""; PICKPAGE=0
@@ -249,6 +269,7 @@ is_night() {
   else [ "$h" -ge "$NIGHT_START" ] && [ "$h" -lt "$NIGHT_END" ]; fi
 }
 light_level() {
+  if [ "${LIGHT_IDLE_MIN:-0}" -gt 0 ] && [ "$CHARGING" != 1 ] && [ -n "$LAST_ACT" ] && [ $(( ${NOWE:-0} - LAST_ACT )) -ge $(( LIGHT_IDLE_MIN * 60 )) ]; then echo 0; return; fi
   [ "$VIEW" = status ] && [ "${STATUS_DIM:-1}" = 1 ] && status_away "$ST_ID" && { echo 0; return; }
   l="$LIGHT_DAY"; is_night && l="$LIGHT_NIGHT"
   [ -z "$l" ] && { echo ""; return; }
@@ -590,6 +611,7 @@ PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 WIFI_SAVE|Tiết kiệm Wi-Fi|1=Bật (tắt Wi-Fi giữa các lần tải);0=Tắt (luôn bật)
 STATUS_DIM|Tắt đèn khi vắng mặt|1=Bật;0=Tắt
+LIGHT_IDLE_MIN|Tắt đèn khi không chạm|0=Không;5=Sau 5 phút;15=Sau 15 phút;30=Sau 30 phút;60=Sau 1 giờ
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
 LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
 LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
@@ -932,7 +954,7 @@ to_view() { # toạ độ cảm ứng (luôn theo chiều dọc gốc) -> toạ 
 
 handle_tap() {
   to_view "$1" "$2"; x=$VX; y=$VY
-  LAST_TOUCH=$(date +%s)
+  LAST_TOUCH=$(date +%s); LAST_ACT=$LAST_TOUCH; NOWE=$LAST_TOUCH
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
     reader) reader_tap $x $y; return ;;
@@ -1056,24 +1078,27 @@ pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 
 TAPPED=1
+LAST_ACT=$(date +%s)
 while true; do
-  b=$(battery)
+  set -- $(date '+%Y%m%d%H %M %S %s'); NOW_YMDH=$1; mnow=${2#0}; NOW_SEC=${3#0}; NOWE=$4
+  LOOPN=$(( ${LOOPN:-0} + 1 ))
+  b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; fi   # pin: mỗi 5 vòng
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
     log "low battery, stopping"; exit 0
   fi
   confirm_check && TAPPED=1
-  ensure_fw_stopped && TAPPED=1
+  [ $(( LOOPN % 3 )) = 1 ] && ensure_fw_stopped && TAPPED=1   # chạm nào cũng kiểm tra lại, ở đây chỉ cần thưa
   [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   pomo_tick && TAPPED=1
-  LOOPN=$(( ${LOOPN:-0} + 1 )); [ $(( LOOPN % 60 )) = 0 ] && log_trim
+  [ $(( LOOPN % 60 )) = 0 ] && log_trim
   if [ "$WIFI_USED" = 1 ] && [ "$VIEW" != reader ] && [ "$VIEW" != update ]; then WIFI_USED=0; wifi_save; fi
   [ "$VIEW" = main ] && auto_page
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
-  mnow=$(date +%M | sed 's/^0//'); key="$(date +%Y%m%d%H)$(( mnow / 15 ))"
+  key="$NOW_YMDH$(( mnow / 15 ))"
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   if [ "$VIEW" = status ]; then
     key=$(status_key)
@@ -1088,7 +1113,7 @@ while true; do
   fi
   TAPPED=0; DATA_CHANGED=0
   every=$REFRESH_MIN; is_night && every=$REFRESH_NIGHT_MIN
-  s=$(date +%S); s=${s#0}; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
+  s=$(date +%S); s=${s#0}; [ -z "$s" ] && s=0; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
   pc=$(pomo_sleep_cap); [ $pc -lt $secs ] && secs=$pc
   pomo_running && [ $secs -gt 60 ] && secs=60
   sleep $secs & SP=$!

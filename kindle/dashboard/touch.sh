@@ -12,11 +12,13 @@ BOLD="$DIR/fonts/NotoSans-Bold.ttf"
 
 log() { echo "$(date '+%F %T') [touch] $*"; }
 
-# Đọc đúng 1 sự kiện -> in "type code value" (value có dấu)
+# Đọc một lượt: một lần read() lấy TẤT CẢ sự kiện đang chờ (tối đa 64), mỗi sự kiện một dòng
+# "sec usec type|code value". Vuốt sinh hàng trăm sự kiện -> trước đây hàng trăm lần dd+od, nay chỉ vài lần.
+ODV=""; echo | od -v -An -tu4 >/dev/null 2>&1 && ODV="-v"
 if echo | od -An -tu4 >/dev/null 2>&1; then
-  read_ev() { dd if="$1" bs=16 count=1 2>/dev/null | od -An -tu4; }
+  read_ev() { dd if="$1" bs=1024 count=1 2>/dev/null | od $ODV -An -tu4; }
 else
-  read_ev() { dd if="$1" bs=16 count=1 2>/dev/null | hexdump -v -e '4/4 "%u " "\n"'; }
+  read_ev() { dd if="$1" bs=1024 count=1 2>/dev/null | hexdump -v -e '4/4 "%u " "\n"'; }
 fi
 
 devices() {
@@ -62,10 +64,13 @@ watch_dev() {
   X=-1; Y=-1; X0=-1; Y0=-1; down=0; last=0
   while :; do
     [ "$mode" = watch ] && [ -f /tmp/dash_stop ] && exit 0
-    set -- $(read_ev "$dev")
+    evs=$(read_ev "$dev")
     [ "$mode" = watch ] && { [ -f /tmp/dash_stop ] || [ ! -f /tmp/dash.pid ]; } && exit 0
+    [ -n "$evs" ] || { sleep 1; continue; }
+    while read -r e1 e2 e3 e4 e5; do
+    set -- $e1 $e2 $e3 $e4 $e5
     [ $# -ge 5 ] && shift            # od có thể in thêm cột offset
-    [ $# -lt 4 ] && { sleep 1; continue; }
+    [ $# -lt 4 ] && continue
     w3=$3; val=$4
     type=$(( w3 % 65536 )); code=$(( w3 / 65536 ))
     [ "$val" -gt 2147483647 ] 2>/dev/null && val=$(( val - 4294967296 ))
@@ -103,6 +108,9 @@ watch_dev() {
       fi
       down=0; X0=-1; Y0=-1
     fi
+    done <<EOT
+$evs
+EOT
   done
 }
 

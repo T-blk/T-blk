@@ -7,7 +7,8 @@ clock_style() { s="$CLOCK_STYLE"; [ -z "$s" ] || [ "$s" = auto ] && s="${LAY_CLO
 # w_clock X Y R C [căn l|c|r]
 w_clock() {
   X=$1; Y0=$2; BW=$3; BH=$4; al=${5:-l}
-  hh=$(date +%H); mm=$(date +%M); h=${hh#0}; m=${mm#0}; [ -z "$h" ] && h=0; [ -z "$m" ] && m=0
+  set -- $(date '+%H %M'); hh=$1; mm=$2; set -- "$X" "$Y0" "$BW" "$BH"
+  h=${hh#0}; m=${mm#0}; [ -z "$h" ] && h=0; [ -z "$m" ] && m=0
   st=$(clock_style)
   case "$st" in
     lat)   [ $BH -ge 100 ] || st=dam ;;
@@ -43,8 +44,8 @@ w_clock() {
       l1=$(sed -n 1p /tmp/dash_words); l2=$(sed -n 2p /tmp/dash_words); l3=$(sed -n 3p /tmp/dash_words)
       if [ $BH -ge 240 ]; then n=3; else n=2; l2="$l2 $l3"; l3=""; fi
       lh=$(( BH / n )); px=$(( lh * 96 / 100 ))
-      mw=$(tw semi $px "$l1"); w2=$(tw light $px "$l2"); [ $w2 -gt $mw ] && mw=$w2
-      [ -n "$l3" ] && { w3=$(tw light $px "$l3"); [ $w3 -gt $mw ] && mw=$w3; }
+      twv semi $px "$l1"; mw=$TWV; twv light $px "$l2"; w2=$TWV; [ $w2 -gt $mw ] && mw=$w2
+      [ -n "$l3" ] && { twv light $px "$l3"; w3=$TWV; [ $w3 -gt $mw ] && mw=$w3; }
       [ $mw -gt $BW ] && { px=$(( px * BW / mw )); lh=$(( px * 104 / 100 )); }
       case "$al" in c) ax=$(( X + BW / 2 )) ;; r) ax=$(( X + BW )) ;; *) ax=$X ;; esac
       tx semi $px $ax $Y0 "$l1" $al
@@ -59,9 +60,9 @@ w_clock() {
         *) f=thin; [ $BH -lt 130 ] && f=light ;;
       esac
       ch=$(( BH * 78 / 100 ))
-      p=$(px_for_cap $f $ch); w=$(tw $f $p "$t"); lw=0
+      p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$TWV; lw=0
       [ -n "$lab" ] && lw=$(( ch * 70 / 100 ))
-      if [ $(( w + lw )) -gt $BW ]; then ch=$(( ch * (BW - lw) / (w + 1) )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 )); p=$(px_for_cap $f $ch); w=$(tw $f $p "$t"); fi
+      if [ $(( w + lw )) -gt $BW ]; then ch=$(( ch * (BW - lw) / (w + 1) )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 )); p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$TWV; fi
       case "$al" in c) lx=$(( X + (BW - w - lw) / 2 )) ;; r) lx=$(( X + BW - w - lw )) ;; *) lx=$X ;; esac
       cy=$(( Y0 + (BH - ch) / 2 ))
       txcap $f $ch $lx $cy "$t"
@@ -91,9 +92,9 @@ left_text() { # phút -> "còn 4 giờ 36 phút"
 }
 ev_title() { [ -n "$5" ] && [ "$EV_LABELS" != 0 ] && echo "[$5] $6" || echo "$6"; }   # fields như ev_upcoming
 ev_line() { sed -n "${1}p" /tmp/dash_up2.txt; }
-ev_split() { # "DAY|MIN|..." -> E_DAY E_MIN E_ALL E_DUR E_LAB E_SUM
-  E_DAY=$(echo "$1" | cut -d'|' -f1); E_MIN=$(echo "$1" | cut -d'|' -f2); E_ALL=$(echo "$1" | cut -d'|' -f3)
-  E_DUR=$(echo "$1" | cut -d'|' -f4); E_LAB=$(echo "$1" | cut -d'|' -f5); E_SUM=$(echo "$1" | cut -d'|' -f6-)
+ev_split() { # "DAY|MIN|..." -> E_DAY E_MIN E_ALL E_DUR E_LAB E_SUM   (không gọi cut)
+  _o=$IFS; IFS='|'; set -f; set -- $1; set +f; IFS=$_o
+  E_DAY=$1; E_MIN=$2; E_ALL=$3; E_DUR=$4; E_LAB=$5; shift 5 2>/dev/null; E_SUM="$*"
   [ -n "$E_LAB" ] && E_SUM="[$E_LAB] $E_SUM"
 }
 ev_when() { # dùng E_* -> "Hôm nay · 19:00"
@@ -228,7 +229,7 @@ week_start_day() { # epoch-day của đầu tuần chứa TD
 ev_week() { # dải tuần (+ danh sách gọn bên dưới nếu $5=1 và còn chỗ)
   X=$1; Y0=$2; BW=$3; BH=$4; cw=$(( BW / 7 ))
   ws=$(week_start_day)
-  awk -F'|' '{print $2}' "$EV" 2>/dev/null | sort -u > /tmp/dash_evdays.txt
+  load_evdays
   k=0
   while [ $k -lt 7 ]; do
     d=$(( ws + k )); cx=$(( X + k * cw + cw / 2 ))
@@ -236,7 +237,7 @@ ev_week() { # dải tuần (+ danh sách gọn bên dưới nếu $5=1 và còn 
     dn=$(day_dm $d); dn=${dn%%/*}
     if [ $d = $TD ]; then box_num $(( cx - 30 )) $(( Y0 + 30 )) 60 58 "$dn" semi 22
     else txcap light 22 $cx $(( Y0 + 48 )) "$dn" c k; fi
-    grep -qx "$d" /tmp/dash_evdays.txt && dot $cx $(( Y0 + 104 )) 7 m
+    is_evday "$d" && dot $cx $(( Y0 + 104 )) 7 m
     k=$((k + 1))
   done
   if [ "$5" = 1 ] && [ $BH -ge 200 ]; then
@@ -373,7 +374,7 @@ w_photo() {
       txcap light 30 $(( X + 14 )) $(( Y0 + ih + 20 )) "$D/$M" l k
       inf="$(pick "$WD_LONG" "$(date +%w)")"; [ -n "$WX_TEMP" ] && inf="$inf · ${WX_TEMP}°"
       dx=$(( $(tw light $(px_for_cap light 30) "$D/$M") + 34 ))
-      cw_=$(tw light 18 "$cap"); [ $cw_ -gt $(( BW / 3 )) ] && cw_=$(( BW / 3 ))
+      twv light 18 "$cap"; cw_=$TWV; [ $cw_ -gt $(( BW / 3 )) ] && cw_=$(( BW / 3 ))
       tx reg 20 $(( X + dx )) $(( Y0 + ih + 24 )) "$inf" l m $(( BW - dx - cw_ - 30 ))
       tx light 18 $(( X + BW - 14 )) $(( Y0 + ih + 26 )) "$cap" r s $(( BW / 3 )) ;;
     *)

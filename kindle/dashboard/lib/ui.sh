@@ -26,14 +26,49 @@ fmetric() {
 }
 # px để chữ HOA / chữ số cao đúng $2 pixel
 px_for_cap() { fmetric "$1"; echo $(( $2 * FK / FC )); }
+pxv() { fmetric "$1"; PXV=$(( $2 * FK / FC )); }          # như trên, không fork
 # toạ độ top (FBInk) để đỉnh chữ số nằm ở y = $3
 top_for_cap() { fmetric "$1"; echo $(( $3 - $2 * (FA - FC) / FK )); }
 
-# tw KEY PX "chữ" -> độ rộng (px)
-tw() {
-  if [ "$1" = sym ]; then echo $(( ${#3} * $2 / 3 )); return; fi
+# twv KEY PX "chữ" -> TWV = độ rộng (px). Có bộ nhớ đệm trong shell: chữ đã đo thì không chạy awk nữa.
+TWC="|"
+# Bảng độ rộng ký tự ASCII nạp 1 lần vào biến shell (MW_<font>_<ký tự>) -> đo số, giờ, chữ không dấu không cần awk
+mw_load() {
+  eval "$(awk 'BEGIN { split("sp co dt cm hy sl pc lp rp", N, " "); split(" :.,-/%()", C, "")
+      for (i = 1; i <= 9; i++) M[C[i]] = N[i]
+      for (c = 48; c < 123; c++) { ch = sprintf("%c", c); if (ch ~ /[0-9A-Za-z]/) M[ch] = ch } }
+    FNR == 1 { k = FILENAME; sub(/.*\//, "", k); sub(/\.txt$/, "", k) }
+    { split($0, a, "\t"); if (FNR == 1) print "MK_" k "=" a[2]; else if (a[1] in M) print "MW_" k "_" M[a[1]] "=" a[2] }' "$DIR"/lib/metrics/*.txt 2>/dev/null)"
+}
+tw_sh() { # chỉ ký tự ASCII thường gặp; trả về 1 nếu gặp ký tự lạ
+  _s=$3; _sum=0
+  while [ -n "$_s" ]; do
+    _r=${_s#?}; _c=${_s%"$_r"}; _s=$_r
+    case "$_c" in
+      [0-9A-Za-z]) _n=$_c ;; " ") _n=sp ;; :) _n=co ;; .) _n=dt ;; ,) _n=cm ;; -) _n=hy ;; /) _n=sl ;; %) _n=pc ;; "(") _n=lp ;; ")") _n=rp ;;
+      *) return 1 ;;
+    esac
+    eval "_a=\${MW_$1_$_n}"; [ -n "$_a" ] || return 1
+    _sum=$(( _sum + _a ))
+  done
+  eval "_K=\${MK_$1:-1209}"; TWV=$(( (_sum * $2 * 2 / _K + 1) / 2 ))
+}
+twv() {
+  if [ "$1" = sym ]; then TWV=$(( ${#3} * $2 / 3 )); return; fi
+  tw_sh "$@" && return 0
+  _k="$1.$2.$3"
+  case "$_k" in *"|"*) TWV=$(tw_awk "$@"); return ;; esac
+  case "$TWC" in
+    *"|$_k="*) _v=${TWC#*"|$_k="}; TWV=${_v%%|*}; return ;;
+  esac
+  TWV=$(tw_awk "$@")
+  [ ${#TWC} -gt 24000 ] && TWC="|"
+  TWC="$TWC$_k=$TWV|"
+}
+tw() { twv "$@"; echo "$TWV"; }
+tw_awk() {
   printf '%s\n' "$3" | awk -v MF="$DIR/lib/metrics/$1.txt" -v PX="$2" '
-    BEGIN { FS = "\t"; while ((getline l < MF) > 0) { split(l, a, "\t"); if (a[1] == "@") K = a[2]; else A[a[1]] = a[2] }
+    BEGIN { FS = "\t"; n = 0; while ((getline l < MF) > 0) { split(l, a, "\t"); if (++n == 1) K = a[2]; else A[a[1]] = a[2] }
             if (K == "") K = 1209 }
     { s = 0; i = 1; L = length($0)
       while (i <= L) {
@@ -62,8 +97,8 @@ tx() {
   [ -n "$5" ] || return 0
   _f=$(font_path "$1"); _al=${6:-l}
   case "$_al" in
-    c) _w=$(tw "$1" "$2" "$5"); [ -n "$8" ] && [ $_w -gt $8 ] && _w=$8; _lx=$(( $3 - _w / 2 )) ;;
-    r) _w=$(tw "$1" "$2" "$5"); [ -n "$8" ] && [ $_w -gt $8 ] && _w=$8; _lx=$(( $3 - _w )) ;;
+    c) twv "$1" "$2" "$5"; _w=$TWV; [ -n "$8" ] && [ $_w -gt $8 ] && _w=$8; _lx=$(( $3 - _w / 2 )) ;;
+    r) twv "$1" "$2" "$5"; _w=$TWV; [ -n "$8" ] && [ $_w -gt $8 ] && _w=$8; _lx=$(( $3 - _w )) ;;
     *) _lx=$3 ;;
   esac
   [ $_lx -lt 0 ] && _lx=0
@@ -73,12 +108,12 @@ tx() {
 }
 # txcap KEY CAPH X Y "chữ" [căn] [màu] [rộng]  — Y = đỉnh chữ số/chữ hoa, cao CAPH
 txcap() {
-  _p=$(px_for_cap "$1" "$2"); _t=$(top_for_cap "$1" "$_p" "$4")
+  fmetric "$1"; _p=$(( $2 * FK / FC )); _t=$(( $4 - _p * (FA - FC) / FK ))
   tx "$1" "$_p" "$3" "$_t" "$5" "$6" "$7" "$8"
 }
 # txfit KEY CAPH X Y "chữ" căn màu RỘNG — như txcap nhưng thu nhỏ cho vừa RỘNG
 txfit() {
-  _ch=$2; _p=$(px_for_cap "$1" "$_ch"); _ww=$(tw "$1" "$_p" "$5")
+  _ch=$2; pxv "$1" "$_ch"; _p=$PXV; twv "$1" "$_p" "$5"; _ww=$TWV
   [ $_ww -gt $8 ] && _ch=$(( _ch * $8 / _ww ))
   txcap "$1" "$_ch" "$3" "$4" "$5" "$6" "$7" "$8"
 }

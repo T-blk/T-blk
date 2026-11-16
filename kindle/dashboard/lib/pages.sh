@@ -59,9 +59,10 @@ is_charging() { [ "$(lipc-get-prop com.lab126.powerd isCharging 2>/dev/null)" = 
 wifi_connected() { [ "$(lipc-get-prop com.lab126.wifid cmState 2>/dev/null)" = CONNECTED ]; }
 
 common_date() {
-  Y=$(date +%Y); M=$(date +%m); D=$(date +%d); M=${M#0}; D=${D#0}
-  TD=$(epoch_day "$Y" "$M" "$D")
-  hh=$(date +%H); mm=$(date +%M); NOWMIN=$(( ${hh#0} * 60 + ${mm#0} ))
+  set -- $(date '+%Y %m %d %H %M %w')
+  Y=$1; M=${2#0}; D=${3#0}; WDAY=$6
+  [ "$TD_KEY" = "$Y.$M.$D" ] || { TD=$(epoch_day "$Y" "$M" "$D"); TD_KEY="$Y.$M.$D"; }
+  NOWMIN=$(( ${4#0} * 60 + ${5#0} ))
 }
 next_event() { # từ $EV -> NE_SUM NE_WHEN NE_LEFT (rỗng nếu không có)
   NE_SUM=""; NE_WHEN=""; NE_LEFT=""
@@ -145,14 +146,14 @@ render_tin() {
   txt 28 458 40 "Tuần này" b
   wd=$(( (TD + 4) % 7 )); if [ "$WEEK_START" = 0 ]; then off=$wd; else off=$(( (wd + 6) % 7 )); fi
   w0=$(( TD - off )); i=0
-  awk -F'|' '{print $2}' "$EV" | sort -u > /tmp/dash_evdays.txt
+  load_evdays
   while [ $i -lt 7 ]; do
     dd=$(( w0 + i )); x=$(( 40 + i * 97 )); c=$(( x + 48 ))
     ctxt 22 500 $c "$(pick "$WD_SHORT" $(( (dd + 4) % 7 )))" b
     n=$(day_dm "$dd"); n=${n%%/*}
     if [ $dd = $TD ]; then RP=72; txt $RP $(( 538 + 17 - RP * 51 / 100 )) $(( c - RP * 35 / 100 )) "$I_RING" s; fi
     ctxt 34 538 $c "$n" b
-    grep -qx "$dd" /tmp/dash_evdays.txt && box 598 $(( c - 4 )) 8 8
+    is_evday "$dd" && box 598 $(( c - 4 )) 8 8
     i=$((i + 1))
   done
   box 628 40 678 2
@@ -260,7 +261,7 @@ set_page_clock() {
 handle_swipe() {
   to_view "$1" "$2"; ax=$VX; ay=$VY; to_view "$3" "$4"; bx=$VX; by=$VY
   dx=$(( bx - ax )); dy=$(( by - ay )); adx=${dx#-}; ady=${dy#-}
-  LAST_TOUCH=$(date +%s)
+  LAST_TOUCH=$(date +%s); LAST_ACT=$LAST_TOUCH; NOWE=$LAST_TOUCH
   log "swipe dx=$dx dy=$dy view=$VIEW page=$PAGE"
   if [ $ady -ge 160 ] && [ $ady -gt $adx ]; then          # vuốt dọc
     [ $dy -lt 0 ] && [ "$VIEW" = main ] && VIEW=stpick         # vuốt lên: chọn trạng thái

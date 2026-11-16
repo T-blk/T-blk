@@ -1,4 +1,4 @@
-version=2026.11.16.08
-sha256=426d3e20e8ea3a2dedb600bad197c681699637549a5d54530f8e9abf2bb2f7de
-size=4851673
-notes=Màn hình trạng thái (tập trung, họp, toilet, cà phê, ăn trưa...) + nút chuyển nhanh; viền hoa lá; tiết kiệm pin (tắt Wi-Fi giữa các lần tải, tắt đèn khi vắng mặt); vẽ nhanh hơn
+version=2026.11.16.09
+sha256=8de7fda76b6e2c8790f35dc052f2154704dc4bbd880ef1a815f4b9c6997b5b52
+size=4853236
+notes=Tối ưu: chạm/vuốt nhẹ hơn nhiều, vẽ nhanh hơn ~2 lần, mỗi phút chỉ ~4 tác vụ; tự tắt đèn khi không chạm; sửa lỗi căn chữ lệch

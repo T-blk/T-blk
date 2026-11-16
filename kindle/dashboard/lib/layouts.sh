@@ -61,7 +61,7 @@ lay_toolbar() { # biểu tượng nhỏ màu xám ở góc phải trên
 slot() { echo "$1"; }                           # tiện đọc
 lunar_short() { nh=""; [ "$L_LEAP" = 1 ] && nh=" nhuận"; echo "$L_D/$L_M$nh"; }
 month_days() { # năm tháng -> số ngày
-  if [ $2 = 12 ]; then n=$(( $(epoch_day $(( $1 + 1 )) 1 1) - $(epoch_day $1 12 1) )); else n=$(( $(epoch_day $1 $(( $2 + 1 )) 1) - $(epoch_day $1 $2 1) )); fi; echo $n
+  case $2 in 4|6|9|11) echo 30 ;; 2) if [ $(( $1 % 4 )) = 0 ] && { [ $(( $1 % 100 )) != 0 ] || [ $(( $1 % 400 )) = 0 ]; }; then echo 29; else echo 28; fi ;; *) echo 31 ;; esac
 }
 first_col() { # epoch-day ngày 1 -> cột (0..6) theo WEEK_START
   c=$(( ($1 + 4) % 7 )); [ "$WEEK_START" != 0 ] && c=$(( (c + 6) % 7 )); echo $c
@@ -135,13 +135,13 @@ cal_swiss() { # x y : lịch tháng kiểu lưới Thụy Sĩ
   [ $MOFF != 0 ] && tx reg 16 718 $y0 "chạm để về hôm nay" r s
   i=0; for hn in $(wd_header); do c=s; is_sunday_col $i && c=k; tx bold 16 $(( x0 + i * cw )) $(( y0 + 30 )) "$hn" l $c; i=$((i + 1)); done
   fd=$(epoch_day $CAL_YR $CAL_M 1); off=$(first_col $fd); nd=$(month_days $CAL_YR $CAL_M)
-  awk -F'|' '{print $2}' "$EV" | sort -u > /tmp/dash_evdays.txt
+  load_evdays
   d=1
   while [ $d -le $nd ]; do
     p=$(( off + d - 1 )); col=$(( p % 7 )); x=$(( x0 + col * cw )); y=$(( y0 + 62 + (p / 7) * rh ))
     if [ $(( fd + d - 1 )) = $TD ]; then box_num $(( x - 8 )) $(( y - 2 )) 56 42 "$d" bold 19
     else f=reg; is_sunday_col $col && f=bold; txcap $f 19 $x $(( y + 10 )) "$d" l k; fi
-    grep -qx "$(( fd + d - 1 ))" /tmp/dash_evdays.txt && [ $(( fd + d - 1 )) != $TD ] && rect $(( x + 40 )) $(( y + 10 )) 5 5 GRAY6
+    is_evday "$(( fd + d - 1 ))" && [ $(( fd + d - 1 )) != $TD ] && rect $(( x + 40 )) $(( y + 10 )) 5 5 GRAY6
     d=$((d + 1))
   done
 }
@@ -165,21 +165,21 @@ render_l_the() {
 }
 cal_card() { # x y : lịch tháng trong thẻ (chấm sự kiện, hôm nay tròn đen)
   x0=$1; y0=$2; cw=94
-  tx semi 28 $x0 $y0 "Tháng $CAL_M" l k; mw=$(tw semi 28 "Tháng $CAL_M")
+  tx semi 28 $x0 $y0 "Tháng $CAL_M" l k; twv semi 28 "Tháng $CAL_M"; mw=$TWV
   tx reg 24 $(( x0 + mw + 12 )) $(( y0 + 3 )) "$CAL_YR" l s
   if [ $MOFF != 0 ]; then tx reg 18 702 $(( y0 + 8 )) "chạm để về hôm nay" r s
   elif [ -n "$HOLI_TEXT" ]; then tx semi 18 702 $(( y0 + 8 )) "$HOLI_TEXT" r m 330; fi
   i=0; for hn in $(wd_header); do tx semi 16 $(( x0 + i * cw + 30 )) $(( y0 + 50 )) "$hn" c s; i=$((i + 1)); done
   fd=$(epoch_day $CAL_YR $CAL_M 1); off=$(first_col $fd); nd=$(month_days $CAL_YR $CAL_M)
   rows=$(( (off + nd + 6) / 7 )); rh=46; [ $rows -ge 6 ] && rh=42
-  awk -F'|' '{print $2}' "$EV" | sort -u > /tmp/dash_evdays.txt
+  load_evdays
   d=1
   while [ $d -le $nd ]; do
     p=$(( off + d - 1 )); col=$(( p % 7 )); cx=$(( x0 + col * cw + 30 )); y=$(( y0 + 86 + (p / 7) * rh ))
     ed=$(( fd + d - 1 ))
     if [ $ed = $TD ]; then disc_num $cx $(( y + 12 )) 42 "$d" semi 17
     else c=k; [ $ed -lt $TD ] && c=s; txcap reg 17 $cx $(( y + 3 )) "$d" c $c; fi
-    grep -qx "$ed" /tmp/dash_evdays.txt && [ $ed != $TD ] && rect $(( cx - 2 )) $(( y + 26 )) 4 4 GRAY6
+    is_evday "$ed" && [ $ed != $TD ] && rect $(( cx - 2 )) $(( y + 26 )) 4 4 GRAY6
     d=$((d + 1))
   done
 }
@@ -232,9 +232,8 @@ render_l_lich() {
   tx thin 66 38 76 "Tháng $(pick "$VN_MONTH" $(( CAL_M - 1 )))" l k 440
   w_clock $CB $CA
   [ $WX_OK = 1 ] && tx reg 20 718 140 "${WX_TEMP}° · $WX_DESC" r m 230
-  lm1=$(awk -v MODE=day -v D=1 -v M="$CAL_M" -v Y="$CAL_YR" -f "$DIR/lib/lunar.awk" | cut -d'|' -f2)
-  nd=$(month_days $CAL_YR $CAL_M)
-  lm2=$(awk -v MODE=day -v D="$nd" -v M="$CAL_M" -v Y="$CAL_YR" -f "$DIR/lib/lunar.awk" | cut -d'|' -f2)
+  nd=$(month_days $CAL_YR $CAL_M); load_lunar_month $CAL_M $CAL_YR
+  eval "lm1=\$LNM_1 lm2=\$LNM_$nd"
   lr="tháng $lm1"; [ "$lm1" != "$lm2" ] && lr="tháng $lm1–$lm2"
   sub="$CAL_YR · $lr âm lịch $L_CC"; [ -n "$HOLI_TEXT" ] && sub="$sub · $HOLI_TEXT"; [ $MOFF != 0 ] && sub="$CAL_YR · chạm tên tháng để về hôm nay"
   tx reg 22 40 166 "$sub" l m 678
@@ -243,9 +242,8 @@ render_l_lich() {
   hl 246 40 718 BLACK 1
   fd=$(epoch_day $CAL_YR $CAL_M 1); off=$(first_col $fd)
   rows=$(( (off + nd + 6) / 7 )); rh=$(( 460 / rows )); [ $rh -gt 84 ] && rh=84
-  awk -F'|' '{print $2}' "$EV" | sort -u > /tmp/dash_evdays.txt
-  : > /tmp/dash_lunar.txt
-  [ "$SHOW_LUNAR" = 1 ] && awk -v MODE=month -v M="$CAL_M" -v Y="$CAL_YR" -f "$DIR/lib/lunar.awk" > /tmp/dash_lunar.txt
+  load_evdays
+  [ "$SHOW_LUNAR" = 1 ] && load_lunar_month $CAL_M $CAL_YR
   r=1; while [ $r -le $rows ]; do hl $(( 246 + r * rh )) 40 718 GRAYC 1; r=$((r + 1)); done
   d=1
   while [ $d -le $nd ]; do
@@ -253,12 +251,11 @@ render_l_lich() {
     ed=$(( fd + d - 1 ))
     if [ $ed = $TD ]; then disc_num $(( x + 34 )) $(( y + 30 )) 48 "$d" semi 19
     else f=reg; is_sunday_col $col && f=semi; c=k; [ $ed -lt $TD ] && c=m; txcap $f 20 $(( x + 14 )) $(( y + 20 )) "$d" l $c; fi
-    ln=$(sed -n "${d}p" /tmp/dash_lunar.txt)
-    if [ -n "$ln" ]; then
-      ld=$(echo "$ln" | cut -d'|' -f2); lmo=$(echo "$ln" | cut -d'|' -f3); lt=$ld; [ "$ld" = 1 ] && lt="1/$lmo"
+    if [ "$SHOW_LUNAR" = 1 ]; then
+      eval "ld=\$LND_$d lmo=\$LNM_$d"; lt=$ld; [ "$ld" = 1 ] && lt="1/$lmo"
       tx reg 14 $(( x + 16 )) $(( y + rh - 26 )) "$lt" l s
     fi
-    grep -qx "$ed" /tmp/dash_evdays.txt && dot $(( x + 82 )) $(( y + 18 )) 7 k
+    is_evday "$ed" && dot $(( x + 82 )) $(( y + 18 )) 7 k
     d=$((d + 1))
   done
   w_events $EB
