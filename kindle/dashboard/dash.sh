@@ -5,6 +5,7 @@
 # Kindle tự vẽ: đồng hồ, lịch tháng, sự kiện Apple Calendar (ICS), thời tiết, ảnh.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/dash.conf"
+: "${NIGHT_START:=22}" "${NIGHT_END:=6}" "${REFRESH_NIGHT_MIN:=$REFRESH_MIN}" "${NIGHT_INVERT:=0}"
 W=758; H=1024
 WX=/tmp/dash_weather.json
 ICS=/tmp/dash_calendar.ics
@@ -126,7 +127,11 @@ render() { # $1 = 1 để nháy đen (full refresh)
 
   # Đầu trang
   txt 40 22 40 "$(pick "$WD_LONG" "$(date +%w)"), $D/$M/$Y" b
-  [ -n "$b" ] && txt 30 28 600 "Pin $b%" "" 120
+  [ -n "$b" ] && txt 26 32 400 "Pin $b%" "" 140
+  if [ "$ONCE" != 1 ]; then                                  # nút Về Home (chạm để thoát)
+    box 14 578 140 3; box 64 578 140 3; box 14 578 3 53; box 14 715 3 53
+    txt 28 24 600 "Về Home" b
+  fi
   box 76 40 678 3
 
   # Đồng hồ + thời tiết
@@ -192,7 +197,28 @@ render() { # $1 = 1 để nháy đen (full refresh)
     eips -g "$p" -x 420 -y 664 >/dev/null 2>&1 || log "eips image failed: $p"
   fi
 
-  if [ "$1" = 1 ]; then "$FB" -q -f -s >/dev/null 2>&1; else "$FB" -q -s >/dev/null 2>&1; fi
+  inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && inv="-H"
+  if [ "$1" = 1 ]; then "$FB" -q -f $inv -s >/dev/null 2>&1; else "$FB" -q $inv -s >/dev/null 2>&1; fi
+}
+
+# ---------- Ban đêm & đèn nền ----------
+is_night() {
+  h=$(date +%H); h=${h#0}
+  if [ "$NIGHT_START" -gt "$NIGHT_END" ]; then [ "$h" -ge "$NIGHT_START" ] || [ "$h" -lt "$NIGHT_END" ]
+  else [ "$h" -ge "$NIGHT_START" ] && [ "$h" -lt "$NIGHT_END" ]; fi
+}
+LIGHT_NOW=""
+set_light() {
+  l="$LIGHT_DAY"; is_night && l="$LIGHT_NIGHT"
+  [ -z "$l" ] || [ "$l" = "$LIGHT_NOW" ] && return 0
+  if lipc-set-prop com.lab126.powerd flIntensity "$l" 2>/dev/null; then :
+  else
+    for bl in /sys/class/backlight/*; do
+      mx=$(cat "$bl/max_brightness" 2>/dev/null) || continue
+      echo $(( l * mx / 24 )) > "$bl/brightness" 2>/dev/null
+    done
+  fi
+  LIGHT_NOW="$l"; log "light -> $l"
 }
 
 # ---------- Chế độ server (tuỳ chọn) ----------
@@ -207,7 +233,9 @@ render_server() {
 }
 draw() { if [ -n "$SERVER_URL" ]; then render_server "$1"; else render "$1"; fi; }
 
+ONCE=0
 if [ "$1" = "--once" ]; then
+  ONCE=1
   [ -n "$SERVER_URL" ] || update_data
   draw 1; log "drawn once"; exit 0
 fi
@@ -215,6 +243,8 @@ fi
 stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
 sleep 2
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+pkill -f "$DIR/touch.sh" 2>/dev/null
+sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 
 n=0
 while true; do
@@ -225,9 +255,11 @@ while true; do
     log "low battery, stopping"; exit 0
   fi
   [ -n "$SERVER_URL" ] || update_data
+  set_light
   full=0; [ $((n % FULL_REFRESH_EVERY)) -eq 0 ] && full=1
   draw $full
   n=$((n + 1))
+  every=$REFRESH_MIN; is_night && every=${REFRESH_NIGHT_MIN:-$REFRESH_MIN}
   s=$(date +%S); s=${s#0}
-  sleep $(( REFRESH_MIN * 60 - s ))
+  sleep $(( every * 60 - s ))
 done

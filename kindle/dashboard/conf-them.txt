@@ -1,0 +1,18 @@
+# ----- Đèn nền & ban đêm -----
+# Đèn nền 0-24 (0 = tắt). Để trống = không đụng tới đèn.
+LIGHT_DAY=8
+LIGHT_NIGHT=1
+# Giờ bắt đầu / kết thúc ban đêm (0-23)
+NIGHT_START=22
+NIGHT_END=6
+# Ban đêm làm mới thưa hơn (phút)
+REFRESH_NIGHT_MIN=10
+# 1 = ban đêm đảo màu nền đen chữ trắng (thử nghiệm, có thể không chạy trên PW2)
+NIGHT_INVERT=0
+
+# ----- Cảm ứng (chỉnh nếu chạm nút Home không ăn; xem dashboard/touch.log) -----
+TOUCH_MAX_X=758
+TOUCH_MAX_Y=1024
+TOUCH_SWAP_XY=0
+TOUCH_FLIP_X=0
+TOUCH_FLIP_Y=0
