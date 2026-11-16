@@ -2,10 +2,11 @@
 """Chuẩn bị ảnh cho Kindle Dashboard (chạy trên Mac/PC).
 
 Tạo 4 cỡ ảnh PNG thang xám (định dạng `eips -g` đọc được):
-  photos/*.png           298x344   khung ảnh, bố cục dọc
+  photos/*.png           298x250   khung ảnh, bố cục dọc
   photos/land/*.png      454x270   khung ảnh, bố cục ngang
   photos/full/*.png      758x1024  xem toàn màn hình, dọc
   photos/fullland/*.png  1024x758  xem toàn màn hình, ngang
+  photos/thumb/*.png     150x150   ảnh nhỏ cho trang chọn ảnh
 
     python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 """
@@ -14,7 +15,7 @@ import sys
 
 from PIL import Image, ImageOps, ImageEnhance
 
-SIZES = {"": (298, 344), "land": (454, 270), "full": (758, 1024), "fullland": (1024, 758)}
+SIZES = {"": (298, 250), "land": (454, 270), "full": (758, 1024), "fullland": (1024, 758), "thumb": (150, 150)}
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".heic"}
 
 

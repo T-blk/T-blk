@@ -1,4 +1,8 @@
-bin/fbink  - FBInk (https://github.com/NiLuJe/FBInk), GPL-3.0.
-             Lấy nguyên bản từ koreader-kindlepw2-v2026.03.zip
-             (SHA-256 gói: 46e969bb13765b2630b5e14aa2e7fa2445ec551ccaa47db3efe644d0e34944b0).
-fonts/NotoSans-*.ttf - Noto Sans (Google), SIL Open Font License 1.1.
+bin/fbink            FBInk (https://github.com/NiLuJe/FBInk), GPL-3.0.
+                     Lấy nguyên bản từ koreader-kindlepw2-v2026.03.zip
+                     (SHA-256 gói: 46e969bb13765b2630b5e14aa2e7fa2445ec551ccaa47db3efe644d0e34944b0).
+fonts/NotoSans-*.ttf Noto Sans (Google), SIL Open Font License 1.1.
+fonts/symbols.ttf    Nerd Fonts Symbols (gồm Weather Icons, Font Awesome), MIT / SIL OFL 1.1,
+                     lấy từ cùng gói KOReader.
+lib/lunar.awk        Thuật toán âm lịch của Hồ Ngọc Đức (viết lại bằng awk).
+clock/*.png          Sinh bởi tools/make_clock_faces.py.

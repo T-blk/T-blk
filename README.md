@@ -55,7 +55,8 @@ phức tạp như "thứ Hai đầu tiên của tháng".
 ```bash
 python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 ```
-Script tạo 4 cỡ ảnh thang xám (khung dọc, khung ngang, toàn màn hình dọc, toàn màn hình ngang). Sau đó chép thư
+Script tạo 5 cỡ ảnh thang xám: khung dọc, khung ngang, toàn màn hình dọc, toàn màn hình ngang, và ảnh nhỏ cho trang chọn ảnh.
+Mặt đồng hồ kim sinh bằng `python3 tools/make_clock_faces.py kindle/dashboard/clock 190`. Sau đó chép thư
 mục `photos` vào Kindle. Ảnh HEIC từ iPhone cần cài thêm `pip3 install pillow-heif`.
 
 KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
@@ -80,23 +81,38 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 4. **Thoát**: chạm **Về Home** hoặc bấm nút nguồn. Nếu cả hai không ăn, giữ
    nút nguồn khoảng 20 giây để khởi động lại.
 
-### Chạm trên màn hình (khi đang chạy "Dashboard - Bat")
+### Màn hình chính
+- **Đồng hồ** có 4 kiểu: số 24 giờ, số 12 giờ (SA/CH), **đồng hồ kim**, **bằng chữ**. Chạm vào đồng hồ để đổi nhanh.
+- **Ngày** có 4 kiểu hiển thị, kèm dòng **âm lịch** và năm can chi.
+- **Thời tiết** có biểu tượng (phân biệt ngày/đêm), nhiệt độ thấp/cao, khả năng mưa, độ ẩm, giờ mặt trời mọc/lặn.
+- **Lịch tháng** có số to và **ngày âm lịch** trong từng ô (mùng 1 hiện "1/tháng"). Hôm nay đánh dấu bằng vòng tròn, khung vuông, gạch chân hoặc tròn đen. Chấm đen là ngày có sự kiện, Chủ Nhật in đậm.
+- **Sự kiện** từ nhiều lịch, có nhãn `[CV]`, `[GĐ]`.
+- **Ảnh** tự đổi theo chu kỳ, hoặc cố định một ảnh chọn từ danh sách.
+- Mỗi phút chỉ vẽ lại vùng đồng hồ. Cả màn hình được vẽ lại mỗi 15 phút, khi có chạm, hoặc khi có dữ liệu mới.
+
+### Chạm trên màn hình
 | Chạm vào | Tác dụng |
 |---|---|
-| **Về Home** (góc trên phải) hoặc bấm nút nguồn | thoát về giao diện Kindle |
-| **– / +** cạnh chữ "Đèn" | giảm hoặc tăng đèn nền |
+| biểu tượng **nhà** (góc trên phải) hoặc bấm nút nguồn | về giao diện Kindle |
+| biểu tượng **bánh răng** | trang **Cài đặt** |
+| **☀ –** / **☀ +** | giảm / tăng đèn nền |
+| **đồng hồ** | đổi kiểu giờ |
 | nửa trái / nửa phải **lịch tháng** | tháng trước / tháng sau |
-| **tiêu đề lịch** ("Tháng …") | về tháng hiện tại |
+| **tiêu đề lịch** | về tháng hiện tại |
 | **phần sự kiện** | trang sự kiện tiếp theo |
-| **ảnh** | xem ảnh toàn màn hình. Ở đó chạm trái/phải để xem ảnh trước/sau, chạm phía trên để quay lại |
+| **ảnh** | xem toàn màn hình (chạm trái/phải: ảnh trước/sau, chạm phía trên: quay lại) |
 
-Sau `IDLE_RESET_MIN` phút không chạm, dashboard tự quay về tháng hiện tại và trang 1.
+### Trang Cài đặt (chạm vào một dòng để đổi)
+Kiểu giờ, kiểu ngày, âm lịch, kiểu đánh dấu hôm nay, tuần bắt đầu Thứ Hai/Chủ Nhật,
+biểu tượng thời tiết, hướng màn hình, ảnh tự đổi/cố định, chu kỳ đổi ảnh, chu kỳ
+cập nhật giờ, đèn ban ngày/ban đêm, đảo màu ban đêm, số ngày sự kiện,
+**Chọn ảnh từ danh sách…**. Các lựa chọn được lưu vào `dashboard/settings.conf`.
 
-### Cài đặt trong `dash.conf`
-- `ICS_URL`: nhiều link cách nhau bằng dấu cách. Gắn nhãn bằng `CV=webcal://…` để hiện `[CV]` trước sự kiện.
-- `ORIENTATION=ngang`: bố cục nằm ngang (thử nghiệm). Chữ bị ngược thì đổi `ROTATE_LAND` giữa 1 và 3. Chạm bị lệch thì đặt `LAND_TOUCH_INVERT=1`.
-- `LIGHT_DAY` / `LIGHT_NIGHT`, `NIGHT_START` / `NIGHT_END`, `REFRESH_NIGHT_MIN`, `NIGHT_INVERT`: đèn nền và chế độ ban đêm.
-- `TOUCH_*`: hiệu chỉnh toạ độ chạm (chạy "Do cam ung" rồi xem `touch.log`).
+### Cài đặt trong `dash.conf` (sửa qua USB)
+- `ICS_URL`: nhiều link cách nhau bằng dấu cách. Gắn nhãn bằng `CV=webcal://…`.
+- `CITY`, `LAT`, `LON`: vị trí lấy thời tiết.
+- `NIGHT_START` / `NIGHT_END` / `REFRESH_NIGHT_MIN`: khung giờ ban đêm.
+- `ROTATE_LAND`, `LAND_TOUCH_INVERT`, `TOUCH_*`: hiệu chỉnh khi xoay ngang hoặc khi chạm bị lệch.
 
 ### Tự chạy khi khởi động
 Bấm **Dashboard - Tu chay: Bat** (cần làm một lần). Từ đó, mỗi lần Kindle
