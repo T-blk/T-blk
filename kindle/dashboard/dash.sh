@@ -9,9 +9,8 @@ SETTINGS="$DIR/settings.conf"
 
 load_conf() {
   . "$DIR/dash.conf"
-  _orient="$ORIENTATION"
   [ -f "$SETTINGS" ] && . "$SETTINGS"
-  ORIENTATION="$_orient"            # hướng màn hình chỉ lấy từ dash.conf (bỏ qua settings.conf cũ)
+  case "$ORIENTATION" in doc|nguoc|ngangtrai|ngangphai) ;; *) ORIENTATION=doc ;; esac
   : "${NIGHT_START:=22}" "${NIGHT_END:=6}" "${REFRESH_MIN:=1}" "${REFRESH_NIGHT_MIN:=$REFRESH_MIN}" "${NIGHT_INVERT:=0}"
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
@@ -148,16 +147,34 @@ parse_weather() {
 }
 
 # ---------- Hướng màn hình ----------
-set_rotation() { [ -w "$ROTF" ] && echo "$1" > "$ROTF" 2>/dev/null; }
-restore_rotation() { # trả lại đúng giá trị lúc dashboard bắt đầu (chỉ khi đã bị đổi)
-  o=$(cat /tmp/dash_rot_orig 2>/dev/null); c=$(cat "$ROTF" 2>/dev/null)
-  [ -n "$o" ] && [ "$c" != "$o" ] && set_rotation "$o"
+# Xoay bằng trình quản lý cửa sổ của Kindle (com.lab126.winmgr orientationLock: U/D/L/R),
+# đặt TRƯỚC khi tắt giao diện Kindle; KHÔNG ghi thẳng vào /sys (làm rối giao diện khi thoát).
+lock_for() { case "$1" in nguoc) echo D ;; ngangtrai) echo L ;; ngangphai) echo R ;; *) echo U ;; esac; }
+get_lock() { lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null; }
+set_lock() { lipc-set-prop com.lab126.winmgr orientationLock "$1" 2>/dev/null; }
+LOCK_NOW=U
+fb_geom() { # đọc kích thước thật từ FBInk sau khi xoay
+  viewWidth=""; viewHeight=""; currentRota=""
+  eval "$("$FB" -e 2>/dev/null | tr -d '\n')" 2>/dev/null
+  if [ -n "$viewWidth" ] && [ -n "$viewHeight" ]; then W=$viewWidth; H=$viewHeight
+  elif [ "$LOCK_NOW" = L ] || [ "$LOCK_NOW" = R ]; then W=1024; H=758; else W=758; H=1024; fi
+  log "geometry ${W}x${H} rota=${currentRota:-?} lock=$LOCK_NOW"
 }
-apply_orientation() {
-  ROT=0; [ "$ORIENTATION" = ngang ] && ROT=$ROTATE_LAND
-  if [ $((ROT % 2)) = 1 ]; then W=1024; H=758; else W=758; H=1024; fi
+W=758; H=1024
+wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; sleep 1; i=$((i + 1)); done; return 1; }
+# Đổi hướng khi giao diện Kindle đang tắt: bật lại, đặt khoá xoay, tắt lại (~30-60 giây)
+reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
+  want=$(lock_for "$1")
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình… (khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
+  start framework 2>/dev/null || start lab126_gui 2>/dev/null
+  if wait_winmgr; then
+    sleep 8; set_lock "$want" && LOCK_NOW="$want"; log "orientationLock -> $want (now $(get_lock))"; sleep 3
+  else log "winmgr not available: cannot rotate"; fi
+  stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
+  sleep 2
+  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+  fb_geom
 }
-apply_orientation
 
 # ---------- Vẽ cơ bản ----------
 # txt px top left "text" [style] [width] [height]   style: b = đậm, s = biểu tượng
@@ -464,6 +481,7 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
+ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang trái;ngangphai=Ngang phải
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
@@ -521,7 +539,12 @@ settings_tap() { # x y
   line=$(echo "$SETTINGS_DEF" | sed -n "${idx}p"); [ -n "$line" ] || return
   key=${line%%|*}; opts=${line##*|}
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
+  old=$(setting_value "$key")
   nv=$(setting_next "$key" "$opts"); save_setting "$key" "$nv"; eval "$key=\"$nv\""
+  if [ "$key" = ORIENTATION ]; then
+    PREV_ORIENT="$old"; reorient "$nv"
+    VIEW=confirm; CONFIRM_DEADLINE=$(( $(date +%s) + 25 )); return
+  fi
   [ "$key" = PHOTO_MODE ] && [ "$nv" = fixed ] && [ -z "$PHOTO_FIXED" ] && { VIEW=pick; PICKPAGE=0; }
 }
 
@@ -583,10 +606,38 @@ render_server() {
     if [ "$1" = 1 ]; then eips -f -g /tmp/dashboard.png; else eips -g /tmp/dashboard.png; fi
   else eips 1 1 "Mat ket noi server $(date +%H:%M)  "; log "server fetch failed: $SERVER_URL"; fi
 }
+# ---------- Xác nhận hướng màn hình ----------
+render_confirm() {
+  left=$(( CONFIRM_DEADLINE - $(date +%s) )); [ $left -lt 0 ] && left=0
+  cx=$(( W / 2 )); cy=$(( H / 2 ))
+  "$FB" -q -b -k >/dev/null 2>&1
+  TXTOPT="-m"
+  txt 34 $(( cy - 210 )) 0 "Màn hình đã đúng chiều chưa?" b
+  frame $(( cy - 110 )) $(( cx - 230 )) 460 220 5
+  txt 46 $(( cy - 70 )) 0 "CHẠM VÀO ĐÂY" b
+  txt 30 $(( cy + 4 )) 0 "để giữ chiều này"
+  txt 26 $(( cy + 150 )) 0 "Không chạm: tự quay lại sau ${left} giây"
+  TXTOPT=""
+  refresh 1
+}
+confirm_tap() { # x y
+  if [ $1 -ge $(( W / 2 - 240 )) ] && [ $1 -le $(( W / 2 + 240 )) ] && [ $2 -ge $(( H / 2 - 130 )) ] && [ $2 -le $(( H / 2 + 130 )) ]; then
+    log "orientation $ORIENTATION confirmed"; VIEW=settings
+  fi
+}
+confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
+  [ "$VIEW" = confirm ] || return 1
+  [ $(date +%s) -ge $CONFIRM_DEADLINE ] || return 1
+  log "orientation $ORIENTATION not confirmed -> back to ${PREV_ORIENT:-doc}"
+  ORIENTATION="${PREV_ORIENT:-doc}"; save_setting ORIENTATION "$ORIENTATION"
+  reorient "$ORIENTATION"; VIEW=settings
+  return 0
+}
+
 draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
-    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;;
+    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;;
     *) render_main "$1" ;;
   esac
 }
@@ -595,21 +646,32 @@ draw() {
 go_home() {
   log "go home ($1)"
   touch /tmp/dash_stop; rm -f /tmp/dash.pid          # báo bộ đọc cảm ứng dừng hẳn
-  restore_rotation
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   sleep 1; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
   rm -f /tmp/dash.pid
+  restore_lock_bg
   exit 0
 }
+restore_lock_bg() { # trả khoá xoay về như lúc bắt đầu, sau khi giao diện Kindle đã chạy lại
+  o=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$o" ] || o=U
+  [ "$LOCK_NOW" = "$o" ] && return 0
+  ( i=0; while [ $i -lt 120 ]; do
+      if [ -n "$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null)" ]; then
+        sleep 5; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
+      sleep 1; i=$((i + 1)); done ) >/dev/null 2>&1 &
+}
 
-to_view() { # toạ độ màn hình dọc (touch.sh) -> toạ độ theo hướng hiện tại
+to_view() { # toạ độ cảm ứng (luôn theo chiều dọc gốc) -> toạ độ theo hướng đang hiển thị
   px=$1; py=$2; VX=$px; VY=$py
-  [ $((ROT % 2)) = 1 ] || return 0
-  a=$ROT; [ "$LAND_TOUCH_INVERT" = 1 ] && a=$(( 4 - ROT ))
-  if [ $a = 1 ]; then VX=$py; VY=$(( 757 - px )); else VX=$(( 1023 - py )); VY=$px; fi
+  case "$LOCK_NOW" in
+    D) VX=$(( 757 - px )); VY=$(( 1023 - py )) ;;
+    L|R)
+      a=1; [ "$LOCK_NOW" = L ] && a=3; [ "$LAND_TOUCH_INVERT" = 1 ] && a=$(( 4 - a ))
+      if [ $a = 1 ]; then VX=$py; VY=$(( 757 - px )); else VX=$(( 1023 - py )); VY=$px; fi ;;
+  esac
 }
 
 handle_tap() {
@@ -617,6 +679,7 @@ handle_tap() {
   LAST_TOUCH=$(date +%s)
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
+    confirm) confirm_tap $x $y; return ;;
     settings) settings_tap $x $y; return ;;
     pick) pick_tap $x $y; return ;;
     photo)
@@ -689,16 +752,18 @@ echo $$ > /tmp/dash.pid
 rm -f "$TAPQ"
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi
 trap 'WOKE=1' USR1
+LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
+LOCK_NOW="$LOCK_ORIG"
+want=$(lock_for "$ORIENTATION")
+if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
+log "orientation $ORIENTATION: lock $LOCK_ORIG -> $LOCK_NOW"
 stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
 log "framework stopped"
 sleep 2
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
-# KHÔNG đụng vào xoay màn hình, trừ khi bật bố cục ngang trong dash.conf (thử nghiệm).
-# Ghi nhớ giá trị gốc để trả lại đúng như cũ khi thoát.
-ROT_ORIG=$(cat "$ROTF" 2>/dev/null); echo "$ROT_ORIG" > /tmp/dash_rot_orig
-log "fb rotate at start: ${ROT_ORIG:-?}"
-[ "$ORIENTATION" = ngang ] && set_rotation "$ROT"
+log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"
+fb_geom
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 
@@ -708,10 +773,11 @@ while true; do
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
-    log "low battery, stopping"; restore_rotation; exit 0
+    log "low battery, stopping"; exit 0
   fi
+  confirm_check && TAPPED=1
   ensure_fw_stopped && TAPPED=1
-  [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
+  [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
@@ -725,8 +791,8 @@ while true; do
   fi
   TAPPED=0; DATA_CHANGED=0
   every=$REFRESH_MIN; is_night && every=$REFRESH_NIGHT_MIN
-  s=$(date +%S); s=${s#0}
-  sleep $(( every * 60 - s )) & SP=$!
+  s=$(date +%S); s=${s#0}; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
+  sleep $secs & SP=$!
   while :; do
     process_taps && { TAPPED=1; kill $SP 2>/dev/null; break; }
     wait $SP 2>/dev/null && break

@@ -30,13 +30,17 @@ go_home() {
   [ -f /tmp/dash.pid ] || { log "ignore $1: dashboard not running"; exit 0; }
   log "go home ($1)"
   touch /tmp/dash_stop
-  o=$(cat /tmp/dash_rot_orig 2>/dev/null); c=$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)
-  [ -n "$o" ] && [ "$c" != "$o" ] && echo "$o" > /sys/class/graphics/fb0/rotate 2>/dev/null
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
   rm -f /tmp/dash.pid
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
+  # trả khoá xoay về như lúc bắt đầu, khi giao diện Kindle đã chạy lại
+  o=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$o" ] || o=U
+  ( i=0; while [ $i -lt 120 ]; do
+      if [ -n "$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null)" ]; then
+        sleep 5; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
+      sleep 1; i=$((i + 1)); done ) >/dev/null 2>&1 &
   pkill -f "dd if=/dev/input" 2>/dev/null
   pkill -f "$DIR/touch.sh" 2>/dev/null
   exit 0
