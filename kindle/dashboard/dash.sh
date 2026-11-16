@@ -150,8 +150,10 @@ render() { # $1 = 1 để nháy đen (full refresh)
     c=$(( CX + col * CW + 48 )); x=$(( c - 13 )); y=$(( GY + 40 + row * RH ))
     [ $day -lt 10 ] && x=$(( c - 7 ))
     if [ "$today" = 1 ]; then
-      box $(( y - 2 )) $(( c - 34 )) 68 $(( RH - 2 ))
-      TXTOPT="-C WHITE"; txt 30 "$y" "$x" "$day" b; TXTOPT=""
+      bt=$(( y - 2 )); bl=$(( c - 34 )); bh=$(( RH - 2 ))
+      box $bt $bl 68 3; box $(( bt + bh - 3 )) $bl 68 3          # khung viền đen
+      box $bt $bl 3 $bh; box $bt $(( bl + 65 )) 3 $bh
+      txt 30 "$y" "$x" "$day" b
     else
       txt 30 "$y" "$x" "$day"
     fi
@@ -161,19 +163,18 @@ render() { # $1 = 1 để nháy đen (full refresh)
 
   # Sự kiện (trái) + ảnh (phải)
   LW=678; [ -n "$photos" ] && LW=360
-  y=664
+  y=662
   if [ -n "$ICS_URL" ]; then
-    txt 30 "$y" 40 "Sắp tới" b; y=$(( y + 46 ))
-    awk -F'|' -v TD="$TD" '$2 >= TD' "$EV" | head -5 > /tmp/dash_up.txt
-    [ -s /tmp/dash_up.txt ] || txt 26 "$y" 40 "Không có sự kiện trong $DAYS_AHEAD ngày tới" "" "$LW"
+    awk -F'|' -v TD="$TD" '$2 >= TD' "$EV" | head -4 > /tmp/dash_up.txt
+    [ -s /tmp/dash_up.txt ] || txt 30 "$y" 40 "Không có sự kiện trong $DAYS_AHEAD ngày tới" "" "$LW"
     while IFS='|' read -r key day min all sum; do
       dd=$(awk -v z="$day" 'BEGIN{z+=719468;era=int((z>=0?z:z-146096)/146097);doe=z-era*146097;yoe=int((doe-int(doe/1460)+int(doe/36524)-int(doe/146096))/365);doy=doe-(365*yoe+int(yoe/4)-int(yoe/100));mp=int((5*doy+2)/153);d=doy-int((153*mp+2)/5)+1;m=mp+(mp<10?3:-9);printf "%d/%d",d,m}')
       wd=$(pick "$WD_SHORT" $(( (day + 4) % 7 )))
       if [ "$day" = "$TD" ]; then when="Hôm nay"; elif [ "$day" = $((TD + 1)) ]; then when="Ngày mai"; else when="$wd $dd"; fi
       if [ "$all" = 1 ]; then when="$when · cả ngày"; else when="$when · $(printf '%02d:%02d' $((min / 60)) $((min % 60)))"; fi
-      txt 22 "$y" 40 "$when" b "$LW" 30
-      txt 26 $(( y + 26 )) 40 "$sum" "" "$LW" 36
-      y=$(( y + 64 ))
+      txt 28 "$y" 40 "$when" b "$LW" 40
+      txt 36 $(( y + 34 )) 40 "$sum" "" "$LW" 52
+      y=$(( y + 86 ))
     done < /tmp/dash_up.txt
   else
     txt 30 "$y" 40 "Việc cần làm" b; y=$(( y + 46 ))
