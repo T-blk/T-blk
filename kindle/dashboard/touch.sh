@@ -6,6 +6,8 @@
 # Mỗi sự kiện input là 16 byte (ARM 32-bit): sec usec type code value.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/dash.conf"
+[ -f "$DIR/settings.conf" ] && . "$DIR/settings.conf"
+. "$DIR/lib/fw.sh"
 FB=/tmp/dash_fbink
 BOLD="$DIR/fonts/NotoSans-Bold.ttf"
 : "${TOUCH_MAX_X:=758}" "${TOUCH_MAX_Y:=1024}" "${TOUCH_SWAP_XY:=0}" "${TOUCH_FLIP_X:=0}" "${TOUCH_FLIP_Y:=0}"
@@ -29,19 +31,21 @@ devices() {
 }
 
 go_home() {
-  [ -f /tmp/dash.pid ] || { log "ignore $1: dashboard not running"; exit 0; }
+  # dashboard đã chết mà giao diện còn đóng băng -> vẫn phải đánh thức nó
+  [ -f /tmp/dash.pid ] || fw_paused || { log "ignore $1: dashboard not running"; exit 0; }
   log "go home ($1)"
   touch /tmp/dash_stop
-  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
+  msg="Đang về Home…"; fw_paused || msg="Đang về Home… (chờ khoảng 30 giây)"
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "$msg" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
   rm -f /tmp/dash.pid
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
-  start framework 2>/dev/null || start lab126_gui 2>/dev/null
+  fw_resume
   # trả khoá xoay về như lúc bắt đầu, khi giao diện Kindle đã chạy lại
   o=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$o" ] || o=U
   ( i=0; while [ $i -lt 120 ]; do
       if [ -n "$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null)" ]; then
-        sleep 5; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
+        sleep 2; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
       sleep 1; i=$((i + 1)); done ) >/dev/null 2>&1 &
   pkill -f "dd if=/dev/input" 2>/dev/null
   pkill -f "$DIR/touch.sh" 2>/dev/null

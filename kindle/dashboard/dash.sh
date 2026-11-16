@@ -16,7 +16,7 @@ load_conf() {
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
-  : "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
+  : "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
@@ -30,6 +30,7 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/widgets.sh"
 . "$DIR/lib/layouts.sh"
 . "$DIR/lib/status.sh"
+. "$DIR/lib/fw.sh"
 modern_ok && mw_load
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
@@ -55,14 +56,25 @@ battery() { lipc-get-prop com.lab126.powerd battLevel 2>/dev/null || gasgauge-in
 
 wifi_on() {
   WIFI_USED=1
+  [ "$(lipc-get-prop com.lab126.wifid cmState 2>/dev/null)" = CONNECTED ] && return 0
   lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null
   lipc-set-prop com.lab126.wifid enable 1 2>/dev/null
+  # chờ sự kiện "đã kết nối" thay vì hỏi từng giây (nếu máy có lipc-wait-event)
+  if command -v lipc-wait-event >/dev/null 2>&1; then
+    lipc-wait-event -s 30 com.lab126.wifid cmConnected >/dev/null 2>&1
+    [ "$(lipc-get-prop com.lab126.wifid cmState 2>/dev/null)" = CONNECTED ] && { wifi_ready; return 0; }
+  fi
   i=0
-  while [ $i -lt 30 ]; do
-    [ "$(lipc-get-prop com.lab126.wifid cmState 2>/dev/null)" = "CONNECTED" ] && return 0
-    sleep 1; i=$((i + 1))
+  while [ $i -lt 60 ]; do
+    [ "$(lipc-get-prop com.lab126.wifid cmState 2>/dev/null)" = CONNECTED ] && { wifi_ready; return 0; }
+    usleep 500000 2>/dev/null || sleep 1
+    i=$((i + 1))
   done
   return 1
+}
+wifi_ready() { # vừa kết nối: đợi có địa chỉ mạng/DNS (tối đa 5 giây) để lần tải đầu không hỏng
+  command -v nslookup >/dev/null 2>&1 || return 0
+  _i=0; while [ $_i -lt 10 ]; do nslookup api.open-meteo.com >/dev/null 2>&1 && return 0; usleep 500000 2>/dev/null || sleep 1; _i=$((_i + 1)); done
 }
 
 # Tiết kiệm pin: tắt Wi-Fi khi không cần (bật lại tự động lúc tải thời tiết/lịch/tin, đọc báo, cập nhật)
@@ -79,7 +91,7 @@ fetch() { # $1=url $2=file $3=chuỗi bắt buộc có
   mv "$2.tmp" "$2"
 }
 
-due() { [ -s "$1" ] || return 0; [ $(( $(date +%s) - $(date -r "$1" +%s 2>/dev/null || echo 0) )) -ge $(( $2 * 60 )) ]; }
+due() { [ -s "$1" ] || return 0; [ $(( $(date +%s) - $(date -r "$1" +%s 2>/dev/null || echo 0) )) -ge $(( $2 * 60 * ${DUE_PCT:-100} / 100 )) ]; }
 
 # Đồng bộ giờ: đọc header "Date:" (giờ UTC chuẩn) từ máy chủ web, chỉnh đồng hồ Kindle nếu lệch >= 15 giây.
 TS_STAMP=/tmp/dash_timesync
@@ -112,6 +124,7 @@ DATA_CHANGED=0
 update_data() {
   [ "$NOWE" -lt "${NEXT_DATA:-0}" ] 2>/dev/null && return 0
   NEXT_DATA=$(( ${NOWE:-0} + 120 ))
+  DUE_PCT=100
   need=0
   due "$WX" "$WEATHER_MIN" && need=1
   [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440 && need=1
@@ -119,28 +132,43 @@ update_data() {
   [ "${TIME_SYNC:-1}" = 1 ] && due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" && need=1
   [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN" && need=1
   [ $need = 1 ] || return 0
-  wifi_on || { log "no wifi"; wifi_save; return 1; }
-  time_sync
+  t0=$(date +%s)
+  if ! wifi_on; then
+    # không có mạng (đi xa, router tắt...): thử thưa dần 2-4-8-16-32-60 phút, đỡ bật sóng vô ích
+    WIFI_FAILS=$(( ${WIFI_FAILS:-0} + 1 )); bk=$(( 2 << (WIFI_FAILS - 1) )); [ $bk -gt 60 ] && bk=60
+    NEXT_DATA=$(( t0 + bk * 60 )); log "no wifi (lần $WIFI_FAILS) -> thử lại sau $bk phút"; WIFI_USED=0; wifi_save; return 1
+  fi
+  WIFI_FAILS=0
+  # Đã bật sóng thì tải luôn những thứ sắp đến hạn (>= 70% chu kỳ) -> ít lần bật Wi-Fi hơn
+  DUE_PCT=70
+  # Tải song song: thời gian bật sóng ngắn lại
+  time_sync & 
   if [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440; then
-    r=$(sh "$DIR/update.sh" --check 2>/dev/null); date +%s > /tmp/dash_otacheck; log "update check: $r"
-    case "$r" in available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;; esac
+    ( sh "$DIR/update.sh" --check > /tmp/dash_otaresult 2>/dev/null; date +%s > /tmp/dash_otacheck ) &
   fi
   if due "$WX" "$WEATHER_MIN"; then
     q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=6"
-    fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"'
+    ( fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' ) &
   fi
-  fetch_aqi
-  fetch_news
+  fetch_aqi &
+  fetch_news &
   if [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN"; then
     mkdir -p "$CALDIR"; k=0
     for u in $ICS_URL; do
       k=$((k + 1)); label=""
       case "$u" in *=webcal://*|*=http://*|*=https://*) label="${u%%=*}"; u="${u#*=}" ;; esac
       u=$(echo "$u" | sed 's#^webcal://#https://#')
-      fetch "$u" "$CALDIR/$k.ics" "BEGIN:VCALENDAR" && echo "$label" > "$CALDIR/$k.label"
+      ( fetch "$u" "$CALDIR/$k.ics" "BEGIN:VCALENDAR" && echo "$label" > "$CALDIR/$k.label" ) &
     done
     date +%s > "$CALDIR/stamp"
   fi
+  wait
+  DUE_PCT=100
+  if [ -s /tmp/dash_otaresult ]; then
+    r=$(cat /tmp/dash_otaresult); rm -f /tmp/dash_otaresult; log "update check: $r"
+    case "$r" in available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;; esac
+  fi
+  log "data: xong trong $(( $(date +%s) - t0 )) giây"
   WIFI_USED=0; wifi_save
   DATA_CHANGED=1
 }
@@ -202,12 +230,18 @@ wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; s
 # Đổi hướng khi giao diện Kindle đang tắt: bật lại, đặt khoá xoay, tắt lại (~30-60 giây)
 reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
   want=$(lock_for "$1")
+  if fw_paused; then                     # nhanh: cho giao diện chạy vài giây để đổi hướng
+    "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình…" >/dev/null 2>&1
+    fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; log "orientationLock -> $want (fast)"
+    sleep 1; lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null; fb_geom
+    return
+  fi
   "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình… (khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
   if wait_winmgr; then
     sleep 8; set_lock "$want" && LOCK_NOW="$want"; log "orientationLock -> $want (now $(get_lock))"; sleep 3
   else log "winmgr not available: cannot rotate"; fi
-  stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
+  fw_pause
   sleep 2
   lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
   fb_geom
@@ -611,6 +645,7 @@ PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 WIFI_SAVE|Tiết kiệm Wi-Fi|1=Bật (tắt Wi-Fi giữa các lần tải);0=Tắt (luôn bật)
 STATUS_DIM|Tắt đèn khi vắng mặt|1=Bật;0=Tắt
+HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
 LIGHT_IDLE_MIN|Tắt đèn khi không chạm|0=Không;5=Sau 5 phút;15=Sau 15 phút;30=Sau 30 phút;60=Sau 1 giờ
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
 LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
@@ -924,11 +959,13 @@ draw() {
 go_home() {
   log "go home ($1)"
   touch /tmp/dash_stop; rm -f /tmp/dash.pid          # báo bộ đọc cảm ứng dừng hẳn
-  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
+  msg="Đang về Home…"; fw_paused || msg="Đang về Home… (chờ khoảng 30 giây)"
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "$msg" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
-  sleep 1; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
-  start framework 2>/dev/null || start lab126_gui 2>/dev/null
+  log_trim
+  fw_resume
+  pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   rm -f /tmp/dash.pid
   restore_lock_bg
   exit 0
@@ -938,7 +975,7 @@ restore_lock_bg() { # trả khoá xoay về như lúc bắt đầu, sau khi giao
   [ "$LOCK_NOW" = "$o" ] && return 0
   ( i=0; while [ $i -lt 120 ]; do
       if [ -n "$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null)" ]; then
-        sleep 5; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
+        sleep 2; lipc-set-prop com.lab126.winmgr orientationLock "$o" 2>/dev/null; exit 0; fi
       sleep 1; i=$((i + 1)); done ) >/dev/null 2>&1 &
 }
 
@@ -1022,12 +1059,10 @@ idle_reset() {
 }
 
 # Giao diện Kindle đôi khi tự bật lại phía dưới -> tắt lại, nếu không nó cũng nhận chạm (hiện "Application Error")
-fw_running() { status framework 2>/dev/null | grep -q running || status lab126_gui 2>/dev/null | grep -q running; }
-ensure_fw_stopped() {
-  fw_running || return 1
-  log "framework came back ($(status framework 2>/dev/null)) -> stopping again"
-  stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
-  sleep 2
+ensure_fw_stopped() {      # chế độ nhanh: chỉ đọc /proc, không tốn tiến trình
+  fw_check || return 1
+  log "framework came back -> paused/stopped again"
+  sleep 1
   lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
   return 0
 }
@@ -1062,14 +1097,15 @@ if [ -f "$DIR/start_view" ]; then sv=$(cat "$DIR/start_view"); rm -f "$DIR/start
 fi
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi
 trap 'WOKE=1' USR1
+# lần chạy trước (cập nhật, lỗi) còn để giao diện đóng băng -> đánh thức để đọc/đặt hướng màn hình
+if fw_paused; then kill -CONT "$(cat "$FW_FLAG")" 2>/dev/null; rm -f "$FW_FLAG"; sleep 1; fi
 LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
 LOCK_NOW="$LOCK_ORIG"
 want=$(lock_for "$ORIENTATION")
 if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
 log "orientation $ORIENTATION: lock $LOCK_ORIG -> $LOCK_NOW"
-stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
-log "framework stopped"
-sleep 2
+fw_pause
+if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; sleep 1; else log "framework stopped"; sleep 2; fi
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
 log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"

@@ -25,14 +25,25 @@ for d in lib fonts bin ornaments ui clockm ring; do cp -R "kindle/dashboard/$d" 
 rm -f "$STAGE/dashboard/todo.txt"             # không ghi đè danh sách việc của người dùng
 cp kindle/documents/*.sh "$STAGE/documents/"
 mkdir -p ota
-( cd "$STAGE" && tar --owner=0 --group=0 -cf - dashboard documents ) | gzip -9n > ota/dashboard.tar.gz
+TAR="tar --owner=0 --group=0 --numeric-owner --sort=name --mtime=@0"
+# Gói tách: mã (nhỏ, đổi thường xuyên) + tài nguyên (font, ảnh dựng sẵn — lớn, ít đổi; chỉ tải lại khi khác)
+ASSETS="fonts bin ornaments clockm ring"
+( cd "$STAGE" && $TAR -cf - $(for d in $ASSETS; do echo "dashboard/$d"; done) ) | gzip -9n > ota/assets.tar.gz
+( cd "$STAGE" && $TAR $(for d in $ASSETS; do echo "--exclude=dashboard/$d"; done) -cf - dashboard documents ) | gzip -9n > ota/core.tar.gz
+# Gói đầy đủ (cho update.sh đời cũ), kèm mã nhận dạng tài nguyên để lần sau chỉ cần tải phần mã
+sha256sum ota/assets.tar.gz | cut -d' ' -f1 > "$STAGE/dashboard/.assets_id"
+( cd "$STAGE" && $TAR -cf - dashboard documents ) | gzip -9n > ota/dashboard.tar.gz
 rm -rf "$STAGE"
-SHA=$(sha256sum ota/dashboard.tar.gz | cut -d' ' -f1)
-SIZE=$(wc -c < ota/dashboard.tar.gz | tr -d ' ')
+sz() { wc -c < "$1" | tr -d ' '; }
+sh_() { sha256sum "$1" | cut -d' ' -f1; }
 cat > ota/version.txt <<EOT
 version=$VER
-sha256=$SHA
-size=$SIZE
+sha256=$(sh_ ota/dashboard.tar.gz)
+size=$(sz ota/dashboard.tar.gz)
+core_sha=$(sh_ ota/core.tar.gz)
+core_size=$(sz ota/core.tar.gz)
+assets_sha=$(sh_ ota/assets.tar.gz)
+assets_size=$(sz ota/assets.tar.gz)
 notes=$NOTES
 EOT
-echo "OTA $VER  ($SIZE byte)  $SHA"
+echo "OTA $VER  đầy đủ $(sz ota/dashboard.tar.gz) B · mã $(sz ota/core.tar.gz) B · tài nguyên $(sz ota/assets.tar.gz) B"

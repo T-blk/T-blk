@@ -1,4 +1,8 @@
-version=2026.11.16.09
-sha256=8de7fda76b6e2c8790f35dc052f2154704dc4bbd880ef1a815f4b9c6997b5b52
-size=4853236
-notes=Tối ưu: chạm/vuốt nhẹ hơn nhiều, vẽ nhanh hơn ~2 lần, mỗi phút chỉ ~4 tác vụ; tự tắt đèn khi không chạm; sửa lỗi căn chữ lệch
+version=2026.11.16.11
+sha256=1aa92ab87b326a260046cf31fa97bbb82296f2437735587d73f0034493c4ffc8
+size=4848871
+core_sha=5cb1bd79f6661cd593799241c3e2e647e3bb9905146e22bbeb9a2aa783280bd1
+core_size=418893
+assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
+assets_size=4426250
+notes=Về Home ~2 giây (đóng băng giao diện Kindle thay vì tắt hẳn), đổi hướng màn hình nhanh; cập nhật chỉ tải phần thay đổi (~400 KB); Wi-Fi: gom & tải song song, chờ kết nối nhanh, thử thưa dần khi mất mạng
