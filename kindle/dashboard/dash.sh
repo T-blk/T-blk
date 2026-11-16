@@ -56,13 +56,42 @@ fetch() { # $1=url $2=file $3=chuỗi bắt buộc có
 
 due() { [ -s "$1" ] || return 0; [ $(( $(date +%s) - $(date -r "$1" +%s 2>/dev/null || echo 0) )) -ge $(( $2 * 60 )) ]; }
 
+# Đồng bộ giờ: đọc header "Date:" (giờ UTC chuẩn) từ máy chủ web, chỉnh đồng hồ Kindle nếu lệch >= 15 giây.
+TS_STAMP=/tmp/dash_timesync
+time_sync() {
+  [ "${TIME_SYNC:-1}" = 1 ] || return 0
+  due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" || return 0
+  hdr=$(curl -s -k -I -m 15 https://www.google.com 2>/dev/null | grep -i '^date:' | head -1)
+  [ -n "$hdr" ] || hdr=$(curl -s -k -I -m 15 https://api.open-meteo.com 2>/dev/null | grep -i '^date:' | head -1)
+  [ -n "$hdr" ] || { log "time sync: no Date header"; return 1; }
+  # "Date: Mon, 16 Nov 2026 10:09:12 GMT" -> "2026-11-16 10:09:12 <epoch>"
+  set -- $(echo "$hdr" | tr -d '\r' | awk '{
+    split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", MN, " "); for (i = 1; i <= 12; i++) if (MN[i] == $4) m = i
+    d = $3 + 0; y = $5 + 0; split($6, t, ":")
+    yy = y - (m <= 2); era = int(yy / 400); yoe = yy - era * 400
+    doy = int((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1
+    days = era * 146097 + yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy - 719468
+    printf "%04d-%02d-%02d %s %d\n", y, m, d, $6, days * 86400 + t[1] * 3600 + t[2] * 60 + t[3] }')
+  [ $# = 3 ] || { log "time sync: cannot parse '$hdr'"; return 1; }
+  now=$(date +%s); diff=$(( now - $3 )); ad=${diff#-}
+  if [ "$ad" -ge 15 ]; then
+    if date -u -s "$1 $2" >/dev/null 2>&1; then
+      hwclock -u -w 2>/dev/null
+      log "time sync: clock was off by ${diff}s -> set to $1 $2 UTC"; DATA_CHANGED=1
+    else log "time sync: date -s failed (off by ${diff}s)"; fi
+  else log "time sync: ok (off by ${diff}s)"; fi
+  date +%s > "$TS_STAMP"
+}
+
 DATA_CHANGED=0
 update_data() {
   need=0
   due "$WX" "$WEATHER_MIN" && need=1
+  [ "${TIME_SYNC:-1}" = 1 ] && due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" && need=1
   [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN" && need=1
   [ $need = 1 ] || return 0
   wifi_on || { log "no wifi"; return 1; }
+  time_sync
   if due "$WX" "$WEATHER_MIN"; then
     q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=1"
     fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"'
