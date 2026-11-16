@@ -9,7 +9,9 @@ SETTINGS="$DIR/settings.conf"
 
 load_conf() {
   . "$DIR/dash.conf"
+  _orient="$ORIENTATION"
   [ -f "$SETTINGS" ] && . "$SETTINGS"
+  ORIENTATION="$_orient"            # hướng màn hình chỉ lấy từ dash.conf (bỏ qua settings.conf cũ)
   : "${NIGHT_START:=22}" "${NIGHT_END:=6}" "${REFRESH_MIN:=1}" "${REFRESH_NIGHT_MIN:=$REFRESH_MIN}" "${NIGHT_INVERT:=0}"
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
