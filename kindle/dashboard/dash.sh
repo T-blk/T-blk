@@ -15,12 +15,13 @@ load_conf() {
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=so24}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
-  : "${ORNAMENT:=auto}"
+  : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
 load_conf
 . "$DIR/lib/icons.sh"
 DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
+. "$DIR/lib/pages.sh"
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
@@ -100,9 +101,10 @@ update_data() {
     case "$r" in available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;; esac
   fi
   if due "$WX" "$WEATHER_MIN"; then
-    q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=1"
+    q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=6"
     fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"'
   fi
+  fetch_aqi
   if [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN"; then
     mkdir -p "$CALDIR"; k=0
     for u in $ICS_URL; do
@@ -257,7 +259,7 @@ pick_photo() { # $1 = thư mục con -> đường dẫn ảnh hiện tại
 # ---------- Bố cục ----------
 set_layout() {
   if [ $W -gt $H ]; then          # NGANG 1024x758
-    B_LMIN=742; B_LPLUS=806; B_GEAR=878; B_HOME=946
+    B_LMIN=676; B_LPLUS=740; B_PAGE=812; B_GEAR=878; B_HOME=946
     CLK_X=36; CLK_Y=80; CLK_W=460; CLK_H=200; CLK_PX=170; ANA_X=170; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=land; WX_X=40; WX_Y=316
@@ -266,7 +268,7 @@ set_layout() {
     EV_X=40; EV_Y=472; EV_W=460; EV_N=3; EV_STEP=90; EV_Y2=758
     PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270; GREET_X=742; GREET_W=243; ORN_TAG=ngang
   else                            # DỌC 758x1024
-    B_LMIN=470; B_LPLUS=534; B_GEAR=610; B_HOME=678
+    B_LMIN=404; B_LPLUS=468; B_PAGE=544; B_GEAR=610; B_HOME=678
     CLK_X=30; CLK_Y=82; CLK_W=416; CLK_H=196; CLK_PX=190; ANA_X=128; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=side; WX_X=460; WX_Y=88
@@ -301,8 +303,9 @@ holiday() { # -> HOLI_THEME HOLI_TEXT
 }
 draw_ornaments() {
   [ -n "$HOLI_THEME" ] || return 0
-  f="$DIR/ornaments/${HOLI_THEME}_${ORN_TAG}"
-  [ -f "${f}_l.png" ] || f="$DIR/ornaments/macdinh_${ORN_TAG}"
+  tag=doc; [ $W -gt $H ] && tag=ngang
+  f="$DIR/ornaments/${HOLI_THEME}_${tag}"
+  [ -f "${f}_l.png" ] || f="$DIR/ornaments/macdinh_${tag}"
   [ -f "${f}_l.png" ] || return 0
   image "${f}_l.png" 2 0
   image "${f}_r.png" $(( W - 28 )) 0
@@ -323,7 +326,16 @@ clock_words() { # giờ phút -> chữ tiếng Việt (2 dòng)
 
 draw_clock() { # vẽ vùng đồng hồ (không refresh)
   hh=$(date +%H); mm=$(date +%M); h=${hh#0}; m=${mm#0}
-  case "$CLOCK_STYLE" in
+  cs="$CLOCK_STYLE"; [ "$CLK_FORCE" = digital ] && case "$cs" in kim|chu) cs=so24 ;; esac
+  if [ "$CLK_CENTER" = 1 ]; then
+    TXTOPT="-m"
+    if [ "$cs" = so12 ]; then
+      h12=$(( h % 12 )); [ $h12 = 0 ] && h12=12; ap="Sáng"; [ $h -ge 12 ] && ap="Chiều"; [ $h -ge 18 ] && ap="Tối"
+      txt $CLK_PX $CLK_Y 0 "$h12:$mm" b; txt 30 $(( CLK_Y + CLK_PX * 98 / 100 )) 0 "$ap" b
+    else txt $CLK_PX $CLK_Y 0 "$hh:$mm" b; fi
+    TXTOPT=""; return
+  fi
+  case "$cs" in
     so12)
       h12=$(( h % 12 )); [ $h12 = 0 ] && h12=12; ap=SA; [ $h -ge 12 ] && ap=CH
       t="$h12:$mm"; txt $CLK_PX $CLK_Y $CLK_X "$t" b
@@ -349,6 +361,7 @@ draw_header() {
       txt 30 20 $B_LMIN "$I_BRIGHT" s; txt 26 22 $(( B_LMIN + 32 )) "–" b
       txt 30 20 $B_LPLUS "$I_BRIGHT" s; txt 26 22 $(( B_LPLUS + 32 )) "+" b
     fi
+    [ "$(page_list)" != main ] && txt 32 19 $B_PAGE "$I_PAGES" s
     txt 34 18 $B_GEAR "$I_GEAR" s
     [ -n "$UPD_AVAIL" ] && box 16 $(( B_GEAR + 30 )) 10 10        # chấm báo có bản mới
     txt 34 18 $B_HOME "$I_HOME" s
@@ -492,7 +505,7 @@ render_main() { # $1 = 1 nháy đen
 }
 
 update_clock() { # chỉ vẽ lại vùng đồng hồ (nhanh, ít tốn pin)
-  set_layout
+  set_page_clock
   clear_rect $CLK_Y $CLK_X $CLK_W $CLK_H
   draw_clock
   refresh 0 "top=$CLK_Y,left=$CLK_X,width=$CLK_W,height=$CLK_H"
@@ -517,6 +530,8 @@ TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạc
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt
+DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm
+NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
@@ -544,7 +559,7 @@ setting_next() { # KEY OPTIONS -> giá trị kế tiếp
   echo "$2" | tr ';' '\n' | awk -F'=' -v v="$v" '{k[NR]=$1} $1==v{p=NR} END{n=(p%NR)+1; print k[n]}'
 }
 settings_geom() {
-  SROW_H=52; SY0=90
+  SROW_H=46; SY0=86
   if [ $W -gt $H ]; then SCOLS=2; SCOLW=$(( (W - 80) / 2 )); else SCOLS=1; SCOLW=$(( W - 80 )); fi
   SPER=$(( (H - SY0 - 20) / SROW_H ))
 }
@@ -559,12 +574,12 @@ render_settings() {
     col=$(( i / SPER )); row=$(( i % SPER ))
     x=$(( 40 + col * SCOLW )); y=$(( SY0 + row * SROW_H ))
     vw=$(( SCOLW * 45 / 100 ))
-    txt 26 $(( y + 12 )) $(( x + 4 )) "$label" "" $(( SCOLW - vw - 20 )) 40
+    txt 26 $(( y + 8 )) $(( x + 4 )) "$label" "" $(( SCOLW - vw - 20 )) 38
     if [ "$key" = "@UPDATE" ]; then
       ut="Bản $DASH_VER"; [ -n "$UPD_AVAIL" ] && ut="Có bản mới $UPD_AVAIL"
-      txt 26 $(( y + 12 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 40
-    elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 12 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
-    else txt 26 $(( y + 12 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 40; fi
+      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 38
+    elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    else txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 38; fi
     box $(( y + SROW_H - 2 )) $x $(( SCOLW - 16 )) 1
     i=$((i + 1))
   done
@@ -784,7 +799,7 @@ draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
-    *) render_main "$1" ;;
+    *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
 
@@ -835,10 +850,15 @@ handle_tap() {
       elif [ $x -lt $(( W / 2 )) ]; then PHOFF=$((PHOFF - 1)); else PHOFF=$((PHOFF + 1)); fi
       return ;;
   esac
+  if [ "$PAGE" != main ]; then
+    [ $y -le 70 ] && page_header_tap $x
+    return
+  fi
   set_layout
   if [ $y -le 80 ]; then
     if [ $x -ge $(( B_HOME - 10 )) ]; then go_home "tap Home"
     elif [ $x -ge $(( B_GEAR - 10 )) ]; then VIEW=settings
+    elif [ $x -ge $(( B_PAGE - 10 )) ]; then page_next 1
     elif [ $x -ge $(( B_LPLUS - 8 )) ] && [ $x -lt $(( B_LPLUS + 60 )) ]; then LADJ=$((LADJ + 2)); set_light
     elif [ $x -ge $(( B_LMIN - 8 )) ] && [ $x -lt $(( B_LMIN + 60 )) ]; then LADJ=$((LADJ - 2)); set_light
     fi
@@ -880,7 +900,10 @@ process_taps() {
   fwb=0; ensure_fw_stopped && fwb=1
   [ -s "$TAPQ" ] || return $(( 1 - fwb ))
   mv "$TAPQ" "$TAPQ.work" 2>/dev/null || return 1
-  while read -r tx ty; do [ -n "$ty" ] && handle_tap "$tx" "$ty"; done < "$TAPQ.work"
+  while read -r tx ty sx1 sy1 sx2; do
+    if [ "$tx" = S ]; then handle_swipe "$ty" "$sx1" "$sy1" "$sx2"
+    elif [ -n "$ty" ]; then handle_tap "$tx" "$ty"; fi
+  done < "$TAPQ.work"
   rm -f "$TAPQ.work"
   return 0
 }
@@ -927,10 +950,12 @@ while true; do
   ensure_fw_stopped && TAPPED=1
   [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
+  [ "$VIEW" = main ] && auto_page
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
   key="$(date +%Y%m%d%H)$(( $(date +%M | sed 's/^0//') / 15 ))"
-  if [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ -n "$SERVER_URL" ]; then
+  if [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
+    LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
     [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0
     draw $full; LAST_KEY="$key"

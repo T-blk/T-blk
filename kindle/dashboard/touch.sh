@@ -59,7 +59,7 @@ map_xy() {
 # $1=device  $2=mode(watch|probe)
 watch_dev() {
   dev=$1; mode=$2
-  X=-1; Y=-1; down=0; last=0
+  X=-1; Y=-1; X0=-1; Y0=-1; down=0; last=0
   while :; do
     [ "$mode" = watch ] && [ -f /tmp/dash_stop ] && exit 0
     set -- $(read_ev "$dev")
@@ -72,7 +72,11 @@ watch_dev() {
     [ "$mode" = probe ] && [ "$type" != 0 ] && log "raw $dev type=$type code=$code value=$val"
     release=0
     case "$type" in
-      3) case "$code" in 0|53) X=$val; down=1 ;; 1|54) Y=$val; down=1 ;; 57) [ "$val" = -1 ] && release=1 ;; esac ;;
+      3) case "$code" in
+           0|53) X=$val; [ $X0 -lt 0 ] && X0=$val; down=1 ;;
+           1|54) Y=$val; [ $Y0 -lt 0 ] && Y0=$val; down=1 ;;
+           57) [ "$val" = -1 ] && release=1 ;;
+         esac ;;
       1) case "$code" in
            330) [ "$val" = 0 ] && release=1; [ "$val" = 1 ] && down=1 ;;
            116) [ "$val" = 1 ] && { [ "$mode" = probe ] && log "POWER pressed" || go_home "power button"; } ;;
@@ -80,7 +84,16 @@ watch_dev() {
     esac
     if [ $release = 1 ] && [ $down = 1 ] && [ $X -ge 0 ] && [ $Y -ge 0 ]; then
       now=$(date +%s)
-      if [ $(( now - last )) -ge 1 ]; then
+      dx=$(( X - X0 )); dy=$(( Y - Y0 )); [ $dx -lt 0 ] && dx=$(( -dx )); [ $dy -lt 0 ] && dy=$(( -dy ))
+      if [ $X0 -ge 0 ] && [ $Y0 -ge 0 ] && { [ $dx -ge 160 ] || [ $dy -ge 160 ]; }; then
+        map_xy $X0 $Y0; s0x=$SX; s0y=$SY; map_xy $X $Y
+        log "swipe raw=($X0,$Y0)->($X,$Y) screen=($s0x,$s0y)->($SX,$SY)"
+        if [ "$mode" = watch ]; then
+          echo "S $s0x $s0y $SX $SY" >> /tmp/dash_taps
+          kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
+        fi
+        last=$(date +%s)
+      elif [ $(( now - last )) -ge 1 ]; then
         last=$now; map_xy $X $Y
         log "tap raw=($X,$Y) screen=($SX,$SY)"
         if [ "$mode" = watch ]; then
@@ -88,7 +101,7 @@ watch_dev() {
           kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
         fi
       fi
-      down=0
+      down=0; X0=-1; Y0=-1
     fi
   done
 }

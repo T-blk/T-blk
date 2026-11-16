@@ -95,6 +95,13 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 - **Ảnh** tự đổi theo chu kỳ, hoặc cố định một ảnh chọn từ danh sách.
 - Mỗi phút chỉ vẽ lại vùng đồng hồ. Cả màn hình được vẽ lại mỗi 15 phút, khi có chạm, hoặc khi có dữ liệu mới.
 
+### Các trang (vuốt trái/phải hoặc chạm biểu tượng đổi trang ⧉)
+- **Bảng chính**: đồng hồ, thời tiết, lịch tháng có âm lịch, sự kiện, ảnh.
+- **Bảng tin**: Wi-Fi/pin/đang sạc, AQI, thanh tiến trình ngày, ô **sự kiện kế tiếp** có đếm ngược, lịch tuần, danh sách sự kiện.
+- **Lịch bloc** (tờ lịch xé): số ngày lớn, âm lịch, **can chi ngày/tháng/năm**, **giờ hoàng đạo**, **tiết khí**, ca dao mỗi ngày (`lib/quotes.txt`), lời chúc dịp lễ.
+- **Ban đêm**: đồng hồ lớn, **dự báo 5 ngày**, giờ mặt trời mọc/lặn, AQI. Mặc định tự chuyển sang trang này trong khung giờ ban đêm.
+- Cài đặt có **Trang mặc định** và **Trang ban đêm**. Sau `IDLE_RESET_MIN` phút không chạm, dashboard quay về trang mặc định. Ở bố cục ngang chỉ có Bảng chính.
+
 ### Chạm trên màn hình
 | Chạm vào | Tác dụng |
 |---|---|

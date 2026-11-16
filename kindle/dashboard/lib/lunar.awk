@@ -2,6 +2,7 @@
 # Chế độ:
 #   -v MODE=day   -v D= -v M= -v Y=   -> "ld|lm|ly|leap|canchi_nam"
 #   -v MODE=month -v M= -v Y=         -> mỗi dòng "d|ld|lm" cho từng ngày dương của tháng
+#   -v MODE=almanac -v D= -v M= -v Y= -> "ld|lm|ly|leap|năm|tháng|ngày|giờ hoàng đạo|tiết khí" (can chi)
 function jdn(dd, mm, yy,   a, y, m) {
   a = int((14 - mm) / 12); y = yy + 4800 - a; m = mm + 12 * a - 3
   return dd + int((153 * m + 2) / 5) + 365 * y + int(y / 4) - int(y / 100) + int(y / 400) - 32045
@@ -55,10 +56,34 @@ function s2l(dd, mm, yy,   dn, k, ms, a11, b11, diff, lo) {
   if (LM > 12) LM -= 12
   if (LM >= 11 && diff < 4) LY -= 1
 }
+function sundeg(jd,   T, T2, dr, Mm, L0, DL, L) { # kinh độ mặt trời (độ) lúc 0h giờ địa phương
+  T = (jd - 2451545.5 - TZ / 24) / 36525; T2 = T * T; dr = PI / 180
+  Mm = 357.52910 + 35999.05030 * T - 0.0001559 * T2 - 0.00000048 * T * T2
+  L0 = 280.46645 + 36000.76983 * T + 0.0003032 * T2
+  DL = (1.914600 - 0.004817 * T - 0.000014 * T2) * sin(dr * Mm)
+  DL = DL + (0.019993 - 0.000101 * T) * sin(dr * 2 * Mm) + 0.000290 * sin(dr * 3 * Mm)
+  L = L0 + DL; L = L - 360 * fl(L / 360)
+  return L
+}
 BEGIN {
   PI = atan2(0, -1); TZ = 7
   split("Canh Tân Nhâm Quý Giáp Ất Bính Đinh Mậu Kỷ", CAN, " ")
   split("Thân Dậu Tuất Hợi Tý Sửu Dần Mão Thìn Tỵ Ngọ Mùi", CHI, " ")
+  if (MODE == "almanac") {
+    split("Giáp Ất Bính Đinh Mậu Kỷ Canh Tân Nhâm Quý", C2, " ")
+    split("Tý Sửu Dần Mão Thìn Tỵ Ngọ Mùi Thân Dậu Tuất Hợi", Z2, " ")
+    split("110100101100 001101001011 110011010010 101100110100 001011001101 010010110011", HD, " ")
+    split("Xuân phân|Thanh minh|Cốc vũ|Lập hạ|Tiểu mãn|Mang chủng|Hạ chí|Tiểu thử|Đại thử|Lập thu|Xử thử|Bạch lộ|Thu phân|Hàn lộ|Sương giáng|Lập đông|Tiểu tuyết|Đại tuyết|Đông chí|Tiểu hàn|Đại hàn|Lập xuân|Vũ thủy|Kinh trập", TK, "|")
+    s2l(D, M, Y); jd = jdn(D, M, Y)
+    yr = C2[(LY + 6) % 10 + 1] " " Z2[(LY + 8) % 12 + 1]
+    mo = C2[(LY * 12 + LM + 3) % 10 + 1] " " Z2[(LM + 1) % 12 + 1]
+    dc = (jd + 1) % 12; dy = C2[(jd + 9) % 10 + 1] " " Z2[dc + 1]
+    pat = HD[dc % 6 + 1]; hrs = ""
+    for (i = 1; i <= 12; i++) if (substr(pat, i, 1) == "1") hrs = hrs (hrs == "" ? "" : ", ") Z2[i]
+    tk = TK[int(sundeg(jd + 0.5) / 15) + 1]
+    printf "%d|%d|%d|%d|%s|%s|%s|%s|%s\n", LD, LM, LY, LLEAP, yr, mo, dy, hrs, tk
+    exit
+  }
   if (MODE == "month") {
     nm = M + 1; ny = Y; if (nm > 12) { nm = 1; ny++ }
     len = jdn(1, nm, ny) - jdn(1, M, Y)

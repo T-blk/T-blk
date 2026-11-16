@@ -1,4 +1,4 @@
-version=2026.11.16.03
-sha256=ca14777468cc94828e7c9748fb8752b5e55b9d2fada2981da90d730b436adc8c
-size=1267912
-notes=Cài đặt: chạm một mục để mở danh sách lựa chọn. Hướng màn hình có hình minh hoạ.
+version=2026.11.16.04
+sha256=e6b49d3416d54e035771e3e8395d41e7285f6273b77e0ce6911600faffec1036
+size=1275595
+notes=3 trang mới: Bảng tin, Lịch bloc (can chi, giờ hoàng đạo, tiết khí, ca dao), Ban đêm (dự báo 5 ngày, AQI). Vuốt để đổi trang.
