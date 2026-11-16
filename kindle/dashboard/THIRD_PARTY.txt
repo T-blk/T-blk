@@ -6,3 +6,8 @@ fonts/symbols.ttf    Nerd Fonts Symbols (gồm Weather Icons, Font Awesome), MIT
                      lấy từ cùng gói KOReader.
 lib/lunar.awk        Thuật toán âm lịch của Hồ Ngọc Đức (viết lại bằng awk).
 clock/*.png          Sinh bởi tools/make_clock_faces.py.
+fonts/Inter-*.ttf    Inter (Rasmus Andersson), SIL Open Font License 1.1. Đã cắt còn ký tự Latin + tiếng Việt
+                     và đổi sang TrueType bằng tools/make_fonts.py.
+fonts/JBMono-*.ttf   JetBrains Mono, SIL Open Font License 1.1 (cắt bớt như trên).
+clockm/, ring/, ui/bg_the.png  Sinh bởi tools/make_modern_assets.py.
+ui/*_STYLE_*.png, ui/LAYOUT_*.png  Ảnh xem trước, chụp từ chính giao diện.

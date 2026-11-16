@@ -14,12 +14,14 @@ VER=$(printf '%s.%02d' "$TODAY" "$N")
 echo "$VER" > kindle/dashboard/VERSION
 cp kindle/dashboard/dash.conf kindle/dashboard/dash.conf.default
 
+[ -f kindle/dashboard/clockm/1159.png ] && [ -f kindle/dashboard/ring/59.png ] || python3 tools/make_modern_assets.py kindle/dashboard
+
 STAGE=$(mktemp -d)
 mkdir -p "$STAGE/dashboard" "$STAGE/documents"
 for f in dash.sh touch.sh update.sh VERSION THIRD_PARTY.txt dash.conf.default todo.txt; do
   cp "kindle/dashboard/$f" "$STAGE/dashboard/"
 done
-for d in lib fonts bin ornaments ui; do cp -R "kindle/dashboard/$d" "$STAGE/dashboard/"; done
+for d in lib fonts bin ornaments ui clockm ring; do cp -R "kindle/dashboard/$d" "$STAGE/dashboard/"; done
 rm -f "$STAGE/dashboard/todo.txt"             # không ghi đè danh sách việc của người dùng
 cp kindle/documents/*.sh "$STAGE/documents/"
 mkdir -p ota

@@ -14,8 +14,9 @@ load_conf() {
   : "${NIGHT_START:=22}" "${NIGHT_END:=6}" "${REFRESH_MIN:=1}" "${REFRESH_NIGHT_MIN:=$REFRESH_MIN}" "${NIGHT_INVERT:=0}"
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
-  : "${CLOCK_STYLE:=so24}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
+  : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
+  : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
 load_conf
@@ -24,6 +25,9 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/pages.sh"
 . "$DIR/lib/news.sh"
 . "$DIR/lib/pomo.sh"
+. "$DIR/lib/ui.sh"
+. "$DIR/lib/widgets.sh"
+. "$DIR/lib/layouts.sh"
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
@@ -330,7 +334,16 @@ clock_words() { # giờ phút -> chữ tiếng Việt (2 dòng)
 
 draw_clock() { # vẽ vùng đồng hồ (không refresh)
   hh=$(date +%H); mm=$(date +%M); h=${hh#0}; m=${mm#0}
-  cs="$CLOCK_STYLE"; [ "$CLK_FORCE" = digital ] && case "$cs" in kim|chu) cs=so24 ;; esac
+  cs="$CLOCK_STYLE"; [ "$cs" = auto ] && cs=so24
+  [ "$CLK_FORCE" = digital ] && case "$cs" in kim|chu|kimtg|vong|lat) cs=so24 ;; esac
+  case "$cs" in
+    so24|so12|kim|chu) ;;
+    *) if modern_ok; then
+         CLOCK_STYLE_SAVE="$CLOCK_STYLE"; CLOCK_STYLE=$cs
+         if [ "$CLK_CENTER" = 1 ]; then w_clock 40 $CLK_Y $(( W - 80 )) $(( CLK_PX * 80 / 100 )) c; else w_clock $CLK_X $CLK_Y $CLK_W $CLK_H l; fi
+         CLOCK_STYLE="$CLOCK_STYLE_SAVE"; return
+       fi; cs=so24 ;;
+  esac
   if [ "$CLK_CENTER" = 1 ]; then
     TXTOPT="-m"
     if [ "$cs" = so12 ]; then
@@ -481,6 +494,7 @@ draw_events() {
 }
 
 render_main() { # $1 = 1 nháy đen
+  if layout_active; then render_layout "$1"; return; fi
   Y=$(date +%Y); M=$(date +%m); D=$(date +%d); M=${M#0}; D=${D#0}
   TD=$(epoch_day "$Y" "$M" "$D")
   set_layout
@@ -503,12 +517,15 @@ render_main() { # $1 = 1 nháy đen
   eval "$DIV"
   draw_calendar
   draw_events
-  [ -n "$PHOTO" ] && image "$PHOTO" $PH_X $PH_Y
+  if [ -n "$PHOTO" ]; then
+    if [ $W -le $H ] && modern_ok; then LAY_PHOTO=tran; w_photo $PH_X $PH_Y $PH_W $PH_H; else image "$PHOTO" $PH_X $PH_Y; fi
+  fi
   refresh "$1"
   log "render main: done"
 }
 
 update_clock() { # chỉ vẽ lại vùng đồng hồ (nhanh, ít tốn pin)
+  if [ "$PAGE" = main ] && layout_active; then update_clock_layout; return; fi
   set_page_clock
   clear_rect $CLK_Y $CLK_X $CLK_W $CLK_H
   draw_clock
@@ -527,13 +544,19 @@ render_photo() {
 
 # ---------- Trang Cài đặt ----------
 # KEY|Nhãn|giá trị1=hiển thị1;giá trị2=hiển thị2;...
-SETTINGS_DEF='CLOCK_STYLE|Kiểu giờ|so24=Số 24 giờ;so12=Số 12 giờ (SA/CH);kim=Đồng hồ kim;chu=Bằng chữ
-DATE_STYLE|Kiểu ngày|dai=Thứ Hai, 16/11/2026;daydu=Thứ Hai, ngày 16 tháng 11;ngan=T2 · 16.11.2026;iso=2026-11-16
+SETTINGS_LOOK='LAYOUT|Bố cục|codien=Cổ điển;toigian=Tối giản;thuysi=Lưới Thụy Sĩ;the=Thẻ;anh=Ảnh lớn;chu=Chữ;lich=Lịch
+CLOCK_STYLE|Kiểu đồng hồ|auto=Theo bố cục;mong=Mảnh;dam=Đậm;mono=Kỹ thuật số;lat=Lật số;kimtg=Kim tối giản;vong=Vòng phút;chu=Bằng chữ;so12=12 giờ;so24=Số cổ điển;kim=Kim cổ điển
+EVENT_STYLE|Kiểu sự kiện|auto=Theo bố cục;danhsach=Danh sách;gon=Gọn;moc=Mốc dọc;baygio=Bây giờ & tiếp theo;tuan=Dải tuần;cham=Tháng dạng chấm;dongtg=Dòng thời gian;cau=Câu văn
+PHOTO_STYLE|Kiểu ảnh|auto=Theo bố cục;tran=Tràn khung;polaroid=Polaroid;tron=Tròn;nhan=Ảnh + nhãn ngày;bia=Ảnh bìa
+DATE_STYLE|Kiểu ngày (Cổ điển)|dai=Thứ Hai, 16/11/2026;daydu=Thứ Hai, ngày 16 tháng 11;ngan=T2 · 16.11.2026;iso=2026-11-16
 SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
-TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
+TODAY_STYLE|Hôm nay (Cổ điển)|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
-ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt
+ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt'
+SET_GROUP=main
+settings_def() { if [ "$SET_GROUP" = look ]; then echo "$SETTINGS_LOOK"; else echo "$SETTINGS_DEF"; fi; }
+SETTINGS_DEF='@LOOK|Giao diện…|
 DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm;pomo=Pomodoro;news=Tin tức
 NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
@@ -570,11 +593,12 @@ settings_geom() {
 render_settings() {
   settings_geom
   "$FB" -q -b -k >/dev/null 2>&1
-  txt 34 18 40 "$I_GEAR" s; txt 34 18 92 "Cài đặt" b
+  if [ "$SET_GROUP" = look ]; then txt 34 18 40 "$I_LEFT" s; txt 34 18 84 "Giao diện" b
+  else txt 34 18 40 "$I_GEAR" s; txt 34 18 92 "Cài đặt" b; fi
   txt 30 22 $(( W - 150 )) "$I_CHECK" s; txt 30 20 $(( W - 112 )) "Xong" b
   box 72 40 $(( W - 80 )) 2
   i=0
-  echo "$SETTINGS_DEF" | while IFS='|' read -r key label opts; do
+  settings_def | while IFS='|' read -r key label opts; do
     col=$(( i / SPER )); row=$(( i % SPER ))
     x=$(( 40 + col * SCOLW )); y=$(( SY0 + row * SROW_H ))
     vw=$(( SCOLW * 45 / 100 ))
@@ -583,6 +607,9 @@ render_settings() {
       ut="Bản $DASH_VER"; [ -n "$UPD_AVAIL" ] && ut="Có bản mới $UPD_AVAIL"
       txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 38
     elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    elif [ "$key" = "@LOOK" ]; then
+      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display LAYOUT "$(echo "$SETTINGS_LOOK" | sed -n 1p | cut -d'|' -f3)")" b $(( vw - 50 )) 38
+      txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
     else txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 38; fi
     box $(( y + SROW_H - 2 )) $x $(( SCOLW - 16 )) 1
     i=$((i + 1))
@@ -590,13 +617,18 @@ render_settings() {
   refresh 1
 }
 settings_tap() { # x y
-  if [ $2 -le 80 ]; then [ $1 -ge $(( W - 200 )) ] && VIEW=main; return; fi
+  if [ $2 -le 80 ]; then
+    if [ $1 -ge $(( W - 200 )) ]; then VIEW=main; SET_GROUP=main
+    elif [ "$SET_GROUP" = look ] && [ $1 -le 300 ]; then SET_GROUP=main; fi
+    return
+  fi
   settings_geom
   row=$(( ($2 - SY0) / SROW_H )); col=$(( ($1 - 40) / SCOLW )); [ $col -ge $SCOLS ] && return
   [ $row -ge $SPER ] && return
   idx=$(( col * SPER + row + 1 ))
-  line=$(echo "$SETTINGS_DEF" | sed -n "${idx}p"); [ -n "$line" ] || return
+  line=$(settings_def | sed -n "${idx}p"); [ -n "$line" ] || return
   key=${line%%|*}; opts=${line##*|}
+  if [ "$key" = "@LOOK" ]; then SET_GROUP=look; return; fi
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
   if [ "$key" = "@UPDATE" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang kiểm tra bản mới…" >/dev/null 2>&1
@@ -617,9 +649,14 @@ settings_tap() { # x y
 choose_geom() {
   CH_N=$(echo "$CH_OPTS" | tr ';' '\n' | grep -c .)
   CY0=96
+  GAL=0
   if [ "$CH_KEY" = ORIENTATION ]; then
     CCOLS=2; CW2=$(( (W - 80) / 2 )); CRH=$(( (H - CY0 - 30) / 2 )); [ $CRH -gt 330 ] && CRH=330
     CPER=4
+  elif [ -f "$DIR/ui/${CH_KEY}_$(echo "$CH_OPTS" | tr ';' '\n' | sed -n 2p | cut -d= -f1).png" ]; then
+    GAL=1; CCOLS=2; [ $W -gt $H ] && CCOLS=3
+    CW2=$(( (W - 80) / CCOLS )); rows=$(( (CH_N + CCOLS - 1) / CCOLS ))
+    CRH=$(( (H - CY0 - 20) / rows )); CPER=$CH_N
   else
     CRH=70; CPER=$(( (H - CY0 - 20) / CRH )); CCOLS=1
     [ $CH_N -gt $CPER ] && CCOLS=2
@@ -643,6 +680,21 @@ render_choose() {
       [ -f "$DIR/ui/orient_$k.png" ] && image "$DIR/ui/orient_$k.png" $(( x + (CW2 - 170) / 2 )) $(( y + 14 ))
       txt 26 $(( y + 196 )) $(( x + 20 )) "$d" b $(( CW2 - 40 )) 80
       [ "$k" = "$cur" ] && txt 24 $(( y + 8 )) $(( x + 16 )) "$I_CHECK" s
+    elif [ $GAL = 1 ]; then
+      col=$(( i % CCOLS )); row=$(( i / CCOLS ))
+      x=$(( 40 + col * CW2 )); y=$(( CY0 + row * CRH ))
+      if [ "$k" = "$cur" ]; then frame $(( y + 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 8 )) 4; st=b; else frame $(( y + 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 8 )) 1; st=""; fi
+      th="$DIR/ui/${CH_KEY}_$k.png"
+      if [ -f "$th" ]; then
+        set -- $(od -An -tu1 -j16 -N8 "$th" 2>/dev/null)       # kích thước PNG từ IHDR
+        if [ $# -ge 8 ]; then tw_=$(( $3 * 256 + $4 )); th_=$(( $7 * 256 + $8 )); else tw_=300; th_=$(( CRH - 60 )); fi
+        image "$th" $(( x + (CW2 - tw_) / 2 )) $(( y + 12 + (CRH - 54 - th_) / 2 ))
+      else
+        txt 34 $(( y + (CRH - 54) / 2 - 10 )) $(( x + 30 )) "Tự động" b $(( CW2 - 60 ))
+        txt 22 $(( y + (CRH - 54) / 2 + 36 )) $(( x + 30 )) "mỗi bố cục một kiểu hợp nhất" "" $(( CW2 - 60 )) 64
+      fi
+      [ "$k" = "$cur" ] && txt 24 $(( y + CRH - 44 )) $(( x + 16 )) "$I_CHECK" s
+      txt 24 $(( y + CRH - 46 )) $(( x + 50 )) "$d" "$st" $(( CW2 - 70 )) 36
     else
       col=$(( i / CPER )); row=$(( i % CPER ))
       x=$(( 40 + col * CW2 )); y=$(( CY0 + row * CRH ))
@@ -662,6 +714,10 @@ choose_tap() { # x y
     col=$(( ($1 - 40) / CW2 )); row=$(( ($2 - CY0 - 10) / CRH ))
     [ $col -ge 0 ] && [ $col -lt 2 ] && [ $row -ge 0 ] && [ $row -lt 2 ] || return
     idx=$(( row * 2 + col + 1 ))
+  elif [ $GAL = 1 ]; then
+    col=$(( ($1 - 40) / CW2 )); row=$(( ($2 - CY0) / CRH ))
+    [ $col -ge 0 ] && [ $col -lt $CCOLS ] && [ $row -ge 0 ] || return
+    idx=$(( row * CCOLS + col + 1 ))
   else
     col=$(( ($1 - 40) / CW2 )); row=$(( ($2 - CY0) / CRH ))
     [ $col -ge 0 ] && [ $col -lt $CCOLS ] && [ $row -ge 0 ] && [ $row -lt $CPER ] || return
@@ -672,6 +728,10 @@ choose_tap() { # x y
   old=$(setting_value "$CH_KEY")
   [ "$nv" = "$old" ] && { VIEW=settings; return; }
   save_setting "$CH_KEY" "$nv"; eval "$CH_KEY=\"$nv\""
+  if [ "$CH_KEY" = LAYOUT ]; then             # đổi bố cục -> các phần về kiểu hợp với bố cục đó
+    for k in CLOCK_STYLE EVENT_STYLE PHOTO_STYLE; do save_setting $k auto; eval "$k=auto"; done
+    VIEW=main; SET_GROUP=main; MOFF=0; EVPAGE=0; return
+  fi
   VIEW=settings
   if [ "$CH_KEY" = ORIENTATION ]; then
     PREV_ORIENT="$old"; reorient "$nv"
@@ -871,7 +931,8 @@ handle_tap() {
     esac
     return
   fi
-  set_layout
+  set_layout; CAL_TH=46
+  if layout_active; then lay_setup; [ "$LAYOUT" = lich ] && CAL_TH=120; fi
   if [ $y -le 80 ]; then
     if [ $x -ge $(( B_HOME - 10 )) ]; then go_home "tap Home"
     elif [ $x -ge $(( B_GEAR - 10 )) ]; then VIEW=settings
@@ -882,7 +943,7 @@ handle_tap() {
     return
   fi
   if [ $x -ge $CX ] && [ $x -le $CAL_X2 ] && [ $y -ge $CAL_Y ] && [ $y -le $CAL_Y2 ]; then
-    if [ $y -lt $(( CAL_Y + 46 )) ]; then MOFF=0
+    if [ $y -lt $(( CAL_Y + CAL_TH )) ]; then MOFF=0
     elif [ $x -lt $(( (CX + CAL_X2) / 2 )) ]; then MOFF=$((MOFF - 1)); else MOFF=$((MOFF + 1)); fi
     return
   fi
@@ -891,8 +952,9 @@ handle_tap() {
     VIEW=photo; return
   fi
   if [ $x -ge $EV_X ] && [ $y -ge $EV_Y ] && [ $y -le $EV_Y2 ]; then EVPAGE=$((EVPAGE + 1)); return; fi
-  if [ $y -ge $CLK_Y ] && [ $y -le $(( CLK_Y + CLK_H )) ] && [ $x -le $(( CLK_X + CLK_W )) ]; then
-    nv=$(setting_next CLOCK_STYLE "so24=;so12=;kim=;chu="); CLOCK_STYLE=$nv; save_setting CLOCK_STYLE "$nv"
+  if [ $y -ge $CLK_Y ] && [ $y -le $(( CLK_Y + CLK_H )) ] && [ $x -ge $CLK_X ] && [ $x -le $(( CLK_X + CLK_W )) ]; then
+    if layout_active; then cl="auto=;mong=;dam=;mono=;lat=;kimtg=;vong=;chu=;so12=;so24=;kim="; else cl="so24=;so12=;kim=;chu=;mong=;dam=;mono=;lat=;kimtg=;vong="; fi
+    nv=$(setting_next CLOCK_STYLE "$cl"); CLOCK_STYLE=$nv; save_setting CLOCK_STYLE "$nv"
   fi
 }
 

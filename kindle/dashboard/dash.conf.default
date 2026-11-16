@@ -22,6 +22,15 @@ PHOTO_MIN=60
 REFRESH_MIN=1
 WEATHER_MIN=30
 CALENDAR_MIN=30
+# ----- Giao diện (đổi ngay trên máy: Cài đặt > Giao diện…) -----
+# Bố cục: codien | toigian | thuysi | the | anh | chu | lich  (bố cục mới chỉ dùng khi màn hình dọc)
+LAYOUT=codien
+# auto = theo bố cục. Đồng hồ: mong dam mono lat kimtg vong chu so12 so24 kim
+CLOCK_STYLE=auto
+# Sự kiện: danhsach gon moc baygio tuan cham dongtg cau
+EVENT_STYLE=auto
+# Ảnh: tran polaroid tron nhan bia  (cần chạy lại them-anh.command để có đủ cỡ ảnh)
+PHOTO_STYLE=auto
 # ----- Đèn nền & ban đêm -----
 # Đèn nền 0-24 (0 = tắt). Để trống = không đụng tới đèn.
 LIGHT_DAY=8

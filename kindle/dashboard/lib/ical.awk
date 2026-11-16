@@ -1,7 +1,7 @@
 # Đọc file .ics (Apple/iCloud/Google), xuất các sự kiện trong khoảng ngày.
 # Biến vào: TODAY (epoch-day), FROM, TO (epoch-day), TZOFF (phút lệch so với UTC, VN = 420)
 # Biến vào thêm: LABEL (nhãn lịch, có thể rỗng)
-# Xuất mỗi dòng: KEY|EPOCHDAY|MINUTE|ALLDAY|LABEL|SUMMARY   (KEY để sort -n)
+# Xuất mỗi dòng: KEY|EPOCHDAY|MINUTE|ALLDAY|LABEL|SUMMARY   (KEY = "khoá_sort:thời_lượng_phút", sort -n theo phần đầu)
 # Hỗ trợ: sự kiện thường, cả ngày, UTC (Z), RRULE DAILY/WEEKLY(BYDAY)/MONTHLY/YEARLY,
 #         INTERVAL, COUNT, UNTIL, EXDATE. Không hỗ trợ: BYSETPOS, BYMONTHDAY phức tạp.
 function dfc(y, m, d,   era, yoe, doy, doe) {
@@ -30,10 +30,19 @@ function pdt(v, isdate,   y, m, d, h, mi) {
     }
   }
 }
+function isodur(v,   n, t, c, i, r) { # PT1H30M, P1D -> phút
+  r = 0; n = ""
+  for (i = 1; i <= length(v); i++) {
+    c = substr(v, i, 1)
+    if (c ~ /[0-9]/) n = n c
+    else { if (c == "W") r += n * 10080; else if (c == "D") r += n * 1440; else if (c == "H") r += n * 60; else if (c == "M") r += n; n = "" }
+  }
+  return r
+}
 function unesc(s) { gsub(/\\n/, " ", s); gsub(/\\,/, ",", s); gsub(/\;/, ";", s); gsub(/\\\\/, "\\", s); return s }
 function emit(d) {
   if (d < FROM || d > TO || (d in EX)) return
-  printf "%d|%d|%d|%d|%s|%s\n", d * 1440 + (ALL ? 0 : MIN), d, MIN, ALL, LABEL, SUM
+  printf "%d:%d|%d|%d|%d|%s|%s\n", d * 1440 + (ALL ? 0 : MIN), DUR, d, MIN, ALL, LABEL, SUM
 }
 function expand(   f, iv, cnt, until, n, i, k, parts, kv, byday, nb, bd, wd0, w, d, dd, y, m, dm, wdmap, idx, guard) {
   if (RR == "") { emit(START); return }
@@ -84,12 +93,23 @@ END { if (prev != "") handle(prev) }
 function handle(line,   name, val, p, i, n, xs) {
   p = index(line, ":"); if (p == 0) return
   name = substr(line, 1, p - 1); val = substr(line, p + 1)
-  if (line == "BEGIN:VEVENT") { inev = 1; RR = ""; SUM = ""; START = ""; MIN = 0; ALL = 0; split("", EX); return }
-  if (line == "END:VEVENT") { if (inev && START != "" && !CANCEL) expand(); inev = 0; CANCEL = 0; return }
+  if (line == "BEGIN:VEVENT") { inev = 1; RR = ""; SUM = ""; START = ""; MIN = 0; ALL = 0; ENDV = ""; DURV = ""; split("", EX); return }
+  if (line == "END:VEVENT") {
+    if (inev && START != "" && !CANCEL) {
+      DUR = ALL ? 1440 : 60
+      if (ENDV != "") { s0 = START; m0 = MIN; pdt(ENDV, ENDD); DUR = (PD - s0) * 1440 + PMIN - m0; START = s0; MIN = m0 }
+      else if (DURV != "") DUR = isodur(DURV)
+      if (DUR < 0) DUR = 0
+      expand()
+    }
+    inev = 0; CANCEL = 0; return
+  }
   if (!inev) return
   if (name ~ /^DTSTART/) { pdt(val, name ~ /VALUE=DATE/ && name !~ /DATE-TIME/); START = PD; MIN = PMIN; ALL = PALL }
-  else if (name == "SUMMARY" || name ~ /^SUMMARY;/) SUM = unesc(val)
+  else if (name == "SUMMARY" || name ~ /^SUMMARY;/) { SUM = unesc(val); gsub(/\|/, "/", SUM) }
   else if (name == "RRULE") RR = val
+  else if (name ~ /^DTEND/) { ENDV = val; ENDD = (name ~ /VALUE=DATE/ && name !~ /DATE-TIME/) }
+  else if (name == "DURATION") DURV = val
   else if (name ~ /^EXDATE/) { n = split(val, xs, ","); for (i = 1; i <= n; i++) { pdt(xs[i], 0); EX[PD] = 1 } }
   else if (name == "STATUS" && val == "CANCELLED") CANCEL = 1
 }
