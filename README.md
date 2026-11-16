@@ -109,6 +109,7 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 |---|---|
 | biểu tượng **nhà** (góc trên phải) hoặc bấm nút nguồn | về giao diện Kindle |
 | biểu tượng **bánh răng** | trang **Cài đặt** |
+| **dải viền** mép trái/phải | tắt/bật hoa văn nhanh |
 | **☀ –** / **☀ +** | giảm / tăng đèn nền |
 | **đồng hồ** | đổi kiểu giờ |
 | nửa trái / nửa phải **lịch tháng** | tháng trước / tháng sau |

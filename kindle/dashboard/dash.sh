@@ -856,6 +856,11 @@ handle_tap() {
       elif [ $x -lt $(( W / 2 )) ]; then PHOFF=$((PHOFF - 1)); else PHOFF=$((PHOFF + 1)); fi
       return ;;
   esac
+  # chạm dải viền mép trái/phải: tắt/bật hoa văn nhanh
+  if [ $y -gt 70 ] && { [ $x -le 32 ] || [ $x -ge $(( W - 32 )) ]; }; then
+    if [ "$ORNAMENT" = 0 ]; then ORNAMENT="${ORN_PREV:-auto}"; else ORN_PREV="$ORNAMENT"; ORNAMENT=0; save_setting ORN_PREV "$ORN_PREV"; fi
+    save_setting ORNAMENT "$ORNAMENT"; log "ornament -> $ORNAMENT"; return
+  fi
   if [ "$PAGE" != main ]; then
     if [ $y -le 70 ]; then page_header_tap $x; return; fi
     CY_TAP=$y
