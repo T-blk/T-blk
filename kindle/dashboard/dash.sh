@@ -625,8 +625,20 @@ idle_reset() {
   MOFF=0; EVPAGE=0; LAST_TOUCH=0; [ "$VIEW" != main ] && VIEW=main; LAST_KEY=""
 }
 
+# Giao diện Kindle đôi khi tự bật lại phía dưới -> tắt lại, nếu không nó cũng nhận chạm (hiện "Application Error")
+fw_running() { status framework 2>/dev/null | grep -q running || status lab126_gui 2>/dev/null | grep -q running; }
+ensure_fw_stopped() {
+  fw_running || return 1
+  log "framework came back ($(status framework 2>/dev/null)) -> stopping again"
+  stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
+  sleep 2
+  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+  return 0
+}
+
 process_taps() {
-  [ -s "$TAPQ" ] || return 1
+  fwb=0; ensure_fw_stopped && fwb=1
+  [ -s "$TAPQ" ] || return $(( 1 - fwb ))
   mv "$TAPQ" "$TAPQ.work" 2>/dev/null || return 1
   while read -r tx ty; do [ -n "$ty" ] && handle_tap "$tx" "$ty"; done < "$TAPQ.work"
   rm -f "$TAPQ.work"
@@ -669,6 +681,7 @@ while true; do
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
     log "low battery, stopping"; restore_rotation; exit 0
   fi
+  ensure_fw_stopped && TAPPED=1
   [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   set_light
