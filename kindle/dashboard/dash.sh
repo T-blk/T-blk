@@ -15,6 +15,7 @@ load_conf() {
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=so24}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
+  : "${ORNAMENT:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
 load_conf
@@ -256,7 +257,7 @@ set_layout() {
     DIV="box 460 40 460 2; box 84 512 2 664"
     CX=530; CW=65; CAL_Y=82; CAL_X2=985; RH=50; CAL_PX=38; CAL_LPX=17; HDR_PX=24; HY_OFF=44; GY_OFF=34; LUN_POS=below; CAL_Y2=470
     EV_X=40; EV_Y=472; EV_W=460; EV_N=3; EV_STEP=90; EV_Y2=758
-    PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270
+    PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270; GREET_X=742; GREET_W=243; ORN_TAG=ngang
   else                            # DỌC 758x1024
     B_LMIN=470; B_LPLUS=534; B_GEAR=610; B_HOME=678
     CLK_X=30; CLK_Y=82; CLK_W=416; CLK_H=196; CLK_PX=190; ANA_X=128; ANA_Y=82
@@ -265,7 +266,7 @@ set_layout() {
     DIV="box 316 40 678 2; box 752 40 678 2"
     CX=40; CW=97; CAL_Y=324; CAL_X2=718; RH=55; CAL_PX=48; CAL_LPX=20; HDR_PX=28; HY_OFF=48; GY_OFF=40; LUN_POS=right; CAL_Y2=750
     EV_X=40; EV_Y=764; EV_W=678; EV_N=3; EV_STEP=82; EV_Y2=1024
-    PH_DIR=""; PH_X=420; PH_Y=764; PH_W=298; PH_H=250
+    PH_DIR=""; PH_X=420; PH_Y=764; PH_W=298; PH_H=250; GREET_X=330; GREET_W=388; ORN_TAG=doc
   fi
 }
 
@@ -279,6 +280,26 @@ date_text() {
   esac
 }
 
+lunar_today() { # -> LD LM LY LEAP CANCHI
+  set -- $(awk -v MODE=day -v D="$D" -v M="$M" -v Y="$Y" -f "$DIR/lib/lunar.awk" | tr '|' ' ')
+  L_D=$1; L_M=$2; L_Y=$3; L_LEAP=$4; L_CC="$5 $6"
+}
+holiday() { # -> HOLI_THEME HOLI_TEXT
+  HOLI_THEME=""; HOLI_TEXT=""
+  [ "$ORNAMENT" = 0 ] && return
+  lunar_today
+  r=$(awk -v D="$D" -v M="$M" -v Y="$Y" -v LD="$L_D" -v LM="$L_M" -v LEAP="$L_LEAP" -f "$DIR/lib/holiday.awk")
+  HOLI_THEME=${r%%|*}; HOLI_TEXT=${r#*|}
+  [ "$ORNAMENT" = thuong ] && HOLI_THEME=macdinh
+}
+draw_ornaments() {
+  [ -n "$HOLI_THEME" ] || return 0
+  f="$DIR/ornaments/${HOLI_THEME}_${ORN_TAG}"
+  [ -f "${f}_l.png" ] || f="$DIR/ornaments/macdinh_${ORN_TAG}"
+  [ -f "${f}_l.png" ] || return 0
+  image "${f}_l.png" 2 0
+  image "${f}_r.png" $(( W - 28 )) 0
+}
 lunar_text() {
   set -- $(awk -v MODE=day -v D="$D" -v M="$M" -v Y="$Y" -f "$DIR/lib/lunar.awk" | tr '|' ' ')
   nhuan=""; [ "$4" = 1 ] && nhuan=" nhuận"
@@ -380,7 +401,11 @@ draw_calendar() {
   hl=0; [ $cy = $Y ] && [ $cm = $M ] && hl=$D
   txt 36 $CAL_Y $CX "Tháng $cm" b
   txt 36 $CAL_Y $(( CX + (${#cm} + 6) * 15 + 14 )) "$cy"
-  [ $MOFF != 0 ] && txt 20 $(( CAL_Y + 14 )) $(( CAL_X2 - 200 )) "chạm tiêu đề: về hôm nay" "" 200
+  if [ $MOFF != 0 ]; then txt 20 $(( CAL_Y + 14 )) $(( CAL_X2 - 200 )) "chạm tiêu đề: về hôm nay" "" 200
+  elif [ -n "$HOLI_TEXT" ]; then
+    txt 22 $(( CAL_Y + 12 )) $GREET_X "$I_CAL" s
+    txt 22 $(( CAL_Y + 12 )) $(( GREET_X + 28 )) "$HOLI_TEXT" b $(( GREET_W - 28 )) 34
+  fi
   HY=$(( CAL_Y + HY_OFF ))
   if [ "$WEEK_START" = 0 ]; then hdr="CN T2 T3 T4 T5 T6 T7"; else hdr="T2 T3 T4 T5 T6 T7 CN"; fi
   i=0; for hname in $hdr; do ctxt $HDR_PX $HY $(( CX + i * CW + CW / 2 )) "$hname" b; i=$((i + 1)); done
@@ -443,7 +468,9 @@ render_main() { # $1 = 1 nháy đen
   EV=/tmp/dash_events.txt; events "$f" "$t" > "$EV"
 
   log "render main: begin"
+  holiday
   "$FB" -q -b -k >/dev/null 2>&1
+  draw_ornaments
   draw_header
   draw_clock
   [ "$SHOW_LUNAR" = 1 ] && txt 24 $LUN_Y $LUN_X "$(lunar_text)" "" $(( CLK_W ))
@@ -481,6 +508,7 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
+ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang trái;ngangphai=Ngang phải
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
@@ -507,7 +535,7 @@ setting_next() { # KEY OPTIONS -> giá trị kế tiếp
   echo "$2" | tr ';' '\n' | awk -F'=' -v v="$v" '{k[NR]=$1} $1==v{p=NR} END{n=(p%NR)+1; print k[n]}'
 }
 settings_geom() {
-  SROW_H=58; SY0=96
+  SROW_H=54; SY0=92
   if [ $W -gt $H ]; then SCOLS=2; SCOLW=$(( (W - 80) / 2 )); else SCOLS=1; SCOLW=$(( W - 80 )); fi
   SPER=$(( (H - SY0 - 20) / SROW_H ))
 }

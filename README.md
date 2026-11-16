@@ -91,6 +91,7 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 - **Thời tiết** có biểu tượng (phân biệt ngày/đêm), nhiệt độ thấp/cao, khả năng mưa, độ ẩm, giờ mặt trời mọc/lặn.
 - **Lịch tháng** có số to và **ngày âm lịch** trong từng ô (mùng 1 hiện "1/tháng"). Hôm nay đánh dấu bằng vòng tròn, khung vuông, gạch chân hoặc tròn đen. Chấm đen là ngày có sự kiện, Chủ Nhật in đậm.
 - **Sự kiện** từ nhiều lịch, có nhãn `[CV]`, `[GĐ]`.
+- **Hoa văn trang trí** hai bên màn hình, đổi theo dịp lễ: hoa mai (Tết), pháo hoa (Tết Dương lịch), trái tim (14/2, 8/3, 20/10), ngôi sao (30/4, 1/5, 2/9), bóng bay (1/6), hoa sen (Phật Đản, Vu Lan), đèn lồng và trăng (Trung thu), sách và hoa (20/11), bông tuyết và cây thông (Giáng sinh), trống đồng (Giỗ Tổ). Ngày thường là hoa văn hình thoi màu xám. Trước mỗi dịp, hàng tiêu đề lịch có dòng chúc mừng kiểu "Nhà giáo Việt Nam 20/11 · còn 4 ngày". Họa tiết sinh bằng `python3 tools/make_ornaments.py kindle/dashboard/ornaments`.
 - **Ảnh** tự đổi theo chu kỳ, hoặc cố định một ảnh chọn từ danh sách.
 - Mỗi phút chỉ vẽ lại vùng đồng hồ. Cả màn hình được vẽ lại mỗi 15 phút, khi có chạm, hoặc khi có dữ liệu mới.
 
@@ -108,7 +109,7 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 
 ### Trang Cài đặt (chạm vào một dòng để đổi)
 Kiểu giờ, kiểu ngày, âm lịch, kiểu đánh dấu hôm nay, tuần bắt đầu Thứ Hai/Chủ Nhật,
-biểu tượng thời tiết, **hướng màn hình** (Dọc / Lộn ngược để sạc ở phía trên / Ngang trái / Ngang phải), ảnh tự đổi/cố định, chu kỳ đổi ảnh, chu kỳ
+biểu tượng thời tiết, **hoa văn trang trí** (theo ngày lễ / thường / tắt), **hướng màn hình** (Dọc / Lộn ngược để sạc ở phía trên / Ngang trái / Ngang phải), ảnh tự đổi/cố định, chu kỳ đổi ảnh, chu kỳ
 cập nhật giờ, đèn ban ngày/ban đêm, đảo màu ban đêm, số ngày sự kiện,
 **Chọn ảnh từ danh sách…**. Các lựa chọn được lưu vào `dashboard/settings.conf`.
 
