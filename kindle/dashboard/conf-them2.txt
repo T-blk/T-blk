@@ -1,0 +1,9 @@
+# ----- Hướng màn hình & tương tác -----
+# doc = dọc, ngang = nằm ngang (thử nghiệm)
+ORIENTATION=doc
+# Hướng xoay khi nằm ngang: 1 hoặc 3 (nếu chữ bị ngược thì đổi số còn lại)
+ROTATE_LAND=1
+# 1 = đảo toạ độ chạm khi nằm ngang (khi chạm bị lệch sang phía đối diện)
+LAND_TOUCH_INVERT=0
+# Sau N phút không chạm: lịch về tháng này, sự kiện về trang 1, thoát xem ảnh
+IDLE_RESET_MIN=5

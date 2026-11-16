@@ -1,6 +1,7 @@
 # Đọc file .ics (Apple/iCloud/Google), xuất các sự kiện trong khoảng ngày.
 # Biến vào: TODAY (epoch-day), FROM, TO (epoch-day), TZOFF (phút lệch so với UTC, VN = 420)
-# Xuất mỗi dòng: KEY|EPOCHDAY|MINUTE|ALLDAY|SUMMARY   (KEY để sort -n)
+# Biến vào thêm: LABEL (nhãn lịch, có thể rỗng)
+# Xuất mỗi dòng: KEY|EPOCHDAY|MINUTE|ALLDAY|LABEL|SUMMARY   (KEY để sort -n)
 # Hỗ trợ: sự kiện thường, cả ngày, UTC (Z), RRULE DAILY/WEEKLY(BYDAY)/MONTHLY/YEARLY,
 #         INTERVAL, COUNT, UNTIL, EXDATE. Không hỗ trợ: BYSETPOS, BYMONTHDAY phức tạp.
 function dfc(y, m, d,   era, yoe, doy, doe) {
@@ -32,7 +33,7 @@ function pdt(v, isdate,   y, m, d, h, mi) {
 function unesc(s) { gsub(/\\n/, " ", s); gsub(/\\,/, ",", s); gsub(/\;/, ";", s); gsub(/\\\\/, "\\", s); return s }
 function emit(d) {
   if (d < FROM || d > TO || (d in EX)) return
-  printf "%d|%d|%d|%d|%s\n", d * 1440 + (ALL ? 0 : MIN), d, MIN, ALL, SUM
+  printf "%d|%d|%d|%d|%s|%s\n", d * 1440 + (ALL ? 0 : MIN), d, MIN, ALL, LABEL, SUM
 }
 function expand(   f, iv, cnt, until, n, i, k, parts, kv, byday, nb, bd, wd0, w, d, dd, y, m, dm, wdmap, idx, guard) {
   if (RR == "") { emit(START); return }

@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Chuẩn bị ảnh cho Kindle Dashboard (chạy trên Mac/PC).
 
-Thu nhỏ ảnh vừa khung 298x344, chuyển thang xám, tăng tương phản nhẹ,
-lưu PNG 8-bit (định dạng `eips -g` đọc được).
+Tạo 4 cỡ ảnh PNG thang xám (định dạng `eips -g` đọc được):
+  photos/*.png           298x344   khung ảnh, bố cục dọc
+  photos/land/*.png      454x270   khung ảnh, bố cục ngang
+  photos/full/*.png      758x1024  xem toàn màn hình, dọc
+  photos/fullland/*.png  1024x758  xem toàn màn hình, ngang
 
-    python3 tools/prepare_photos.py ~/Pictures/chon-cho-kindle  kindle/dashboard/photos
-    python3 tools/prepare_photos.py anh1.jpg anh2.heic ... kindle/dashboard/photos
+    python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 """
 import os
 import sys
 
 from PIL import Image, ImageOps, ImageEnhance
 
-BOX = (298, 344)
+SIZES = {"": (298, 344), "land": (454, 270), "full": (758, 1024), "fullland": (1024, 758)}
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".heic"}
 
 
@@ -29,11 +31,15 @@ def collect(paths):
 def convert(src, dst_dir, idx):
     img = Image.open(src)
     img = ImageOps.exif_transpose(img).convert("L")
-    img = ImageOps.fit(img, BOX, Image.LANCZOS)          # cắt giữa cho đầy khung
     img = ImageEnhance.Contrast(img).enhance(1.15)
-    out = os.path.join(dst_dir, f"photo_{idx:03d}.png")
-    img.save(out, "PNG", optimize=True)
-    return out
+    for sub, box in SIZES.items():
+        d = os.path.join(dst_dir, sub) if sub else dst_dir
+        os.makedirs(d, exist_ok=True)
+        if sub.startswith("full"):
+            out = ImageOps.pad(img, box, Image.LANCZOS, color=255)   # giữ trọn ảnh, viền trắng
+        else:
+            out = ImageOps.fit(img, box, Image.LANCZOS)              # cắt giữa cho đầy khung
+        out.save(os.path.join(d, f"photo_{idx:03d}.png"), "PNG", optimize=True)
 
 
 def main():
@@ -45,10 +51,10 @@ def main():
     n = 0
     for src in collect(srcs):
         try:
+            convert(src, dst, n + 1)
             n += 1
-            print("->", convert(src, dst, n))
+            print(f"-> {os.path.basename(src)}  (photo_{n:03d})")
         except Exception as e:  # HEIC cần pillow-heif: pip3 install pillow-heif
-            n -= 1
             print(f"bỏ qua {src}: {e}")
     print(f"Xong {n} ảnh.")
 

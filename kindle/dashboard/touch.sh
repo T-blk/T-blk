@@ -1,6 +1,7 @@
 #!/bin/sh
 # Đọc cảm ứng + nút nguồn cho Kindle Dashboard.
-#   sh touch.sh          theo dõi: chạm nút "Về Home" hoặc bấm nút nguồn -> về giao diện Kindle
+#   sh touch.sh          theo dõi: mỗi lần chạm -> ghi "x y" vào /tmp/dash_taps và đánh thức dash.sh;
+#                        bấm nút nguồn -> về giao diện Kindle
 #   sh touch.sh --probe  dò cảm ứng 25 giây, ghi log để hiệu chỉnh toạ độ
 # Mỗi sự kiện input là 16 byte (ARM 32-bit): sec usec type code value.
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +30,8 @@ go_home() {
   log "go home ($1)"
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
+  echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
+  rm -f /tmp/dash.pid
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
   pkill -f "dd if=/dev/input" 2>/dev/null
@@ -71,7 +74,10 @@ watch_dev() {
       if [ $(( now - last )) -ge 1 ]; then
         last=$now; map_xy $X $Y
         log "tap raw=($X,$Y) screen=($SX,$SY)"
-        if [ "$mode" = watch ] && [ $SX -ge 540 ] && [ $SY -le 120 ]; then go_home "tap Home"; fi
+        if [ "$mode" = watch ]; then
+          echo "$SX $SY" >> /tmp/dash_taps
+          kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
+        fi
       fi
       down=0
     fi
