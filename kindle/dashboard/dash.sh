@@ -429,7 +429,6 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
-ORIENTATION|Hướng màn hình|doc=Dọc;ngang=Ngang (thử)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
@@ -649,7 +648,9 @@ log "framework stopped"
 sleep 2
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
-[ "$ROT" != 0 ] && set_rotation "$ROT"
+# bố cục ngang chỉ bật được qua dash.conf (thử nghiệm); luôn trả màn hình về dọc nếu đang bị xoay
+if [ "$ROT" != 0 ]; then set_rotation "$ROT"
+elif [ "$(cat "$ROTF" 2>/dev/null)" != 0 ]; then set_rotation 0; log "reset fb rotation to 0"; fi
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 

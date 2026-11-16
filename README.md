@@ -104,7 +104,7 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
 
 ### Trang Cài đặt (chạm vào một dòng để đổi)
 Kiểu giờ, kiểu ngày, âm lịch, kiểu đánh dấu hôm nay, tuần bắt đầu Thứ Hai/Chủ Nhật,
-biểu tượng thời tiết, hướng màn hình, ảnh tự đổi/cố định, chu kỳ đổi ảnh, chu kỳ
+biểu tượng thời tiết, ảnh tự đổi/cố định, chu kỳ đổi ảnh, chu kỳ
 cập nhật giờ, đèn ban ngày/ban đêm, đảo màu ban đêm, số ngày sự kiện,
 **Chọn ảnh từ danh sách…**. Các lựa chọn được lưu vào `dashboard/settings.conf`.
 
