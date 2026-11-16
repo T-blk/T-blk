@@ -30,7 +30,7 @@ go_home() {
   log "go home ($1)"
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
-  echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
+  [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
   rm -f /tmp/dash.pid
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null

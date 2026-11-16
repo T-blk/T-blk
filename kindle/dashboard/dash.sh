@@ -28,7 +28,7 @@ BOLD="$DIR/fonts/NotoSans-Bold.ttf"
 SYM="$DIR/fonts/symbols.ttf"
 ROTF=/sys/class/graphics/fb0/rotate
 
-log() { echo "$(date '+%F %T') $*"; }
+log() { echo "$(date '+%F %T') $*"; sync 2>/dev/null; }
 cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"
 
 battery() { lipc-get-prop com.lab126.powerd battLevel 2>/dev/null || gasgauge-info -c 2>/dev/null | tr -d '%'; }
@@ -336,28 +336,21 @@ draw_calendar() {
   : > /tmp/dash_lunar.txt
   [ "$SHOW_LUNAR" = 1 ] && awk -v MODE=month -v M="$cm" -v Y="$cy" -f "$DIR/lib/lunar.awk" > /tmp/dash_lunar.txt
   GY=$(( HY + GY_OFF ))
-  RP=$(( (RH - 4) * 100 / 64 ))                                  # cỡ glyph vòng tròn
-  awk -v Y="$cy" -v M="$cm" -v D="$hl" -v WS="$WEEK_START" -f "$DIR/lib/month.awk" | while IFS='|' read -r row col day today; do
-    c=$(( CX + col * CW + CW / 2 )); y=$(( GY + row * RH ))
-    sty=""; sun=6; [ "$WEEK_START" = 0 ] && sun=0; [ $col = $sun ] && sty=b
-    if [ "$today" = 1 ]; then
-      case "$TODAY_STYLE" in
-        khung) frame $(( y - 2 )) $(( c - CW / 2 + 4 )) $(( CW - 8 )) $(( RH - 4 )) ;;
-        gach)  box $(( y + CAL_PX * 70 / 100 )) $(( c - CAL_PX / 2 )) $CAL_PX 4 ;;
-        den)   txt $RP $(( y + CAL_PX * 51 / 100 - RP * 51 / 100 )) $(( c - RP * 35 / 100 )) "$I_DISC" s; TXTOPT="-C WHITE" ;;
-        *)     txt $RP $(( y + CAL_PX * 51 / 100 - RP * 51 / 100 )) $(( c - RP * 35 / 100 )) "$I_RING" s ;;
-      esac
-      sty=b
-    fi
-    ctxt $CAL_PX $y $c "$day" "$sty"; TXTOPT=""
-    if [ "$SHOW_LUNAR" = 1 ]; then
-      lv=$(sed -n "${day}p" /tmp/dash_lunar.txt); ld=$(echo "$lv" | cut -d'|' -f2); lm=$(echo "$lv" | cut -d'|' -f3)
-      lt="$ld"; [ "$ld" = 1 ] && lt="1/$lm"
-      if [ "$LUN_POS" = below ]; then [ -n "$ld" ] && ctxt $CAL_LPX $(( y + CAL_PX * 78 / 100 )) $c "$lt"
-      else [ -n "$ld" ] && ctxt $CAL_LPX $(( y + CAL_PX * 56 / 100 )) $(( c + CW * 36 / 100 )) "$lt"; fi
-    fi
-    grep -qx "$(( CFIRST + day - 1 ))" /tmp/dash_evdays.txt && box $(( y + CAL_PX * 18 / 100 )) $(( c + CW * 30 / 100 )) 8 8
-  done
+  RP=$(( (RH - 4) * 100 / 64 ))
+  awk -v Y="$cy" -v M="$cm" -v D="$hl" -v WS="$WEEK_START" -v CX="$CX" -v CW="$CW" -v GY="$GY" -v RH="$RH" \
+      -v PX="$CAL_PX" -v LPX="$CAL_LPX" -v LUNPOS="$LUN_POS" -v SHOWLUN="$SHOW_LUNAR" -v TSTYLE="$TODAY_STYLE" \
+      -v RP="$RP" -v CFIRST="$CFIRST" -v LUNF=/tmp/dash_lunar.txt -v EVF=/tmp/dash_evdays.txt \
+      -f "$DIR/lib/calcells.awk" > /tmp/dash_cells.txt
+  while IFS='|' read -r k a1 a2 a3 a4 a5; do
+    case "$k" in
+      T) case "$a5" in RING) a5="$I_RING" ;; DISC) a5="$I_DISC" ;; esac
+         if [ "$a4" = w ]; then TXTOPT="-C WHITE"; txt "$a1" "$a2" "$a3" "$a5" b; TXTOPT=""
+         else txt "$a1" "$a2" "$a3" "$a5" "$a4"; fi ;;
+      B) box "$a1" "$a2" "$a3" "$a4" ;;
+      F) frame "$a1" "$a2" "$a3" "$a4" ;;
+    esac
+  done < /tmp/dash_cells.txt
+  log "calendar drawn ($(wc -l < /tmp/dash_cells.txt) ops)"
 }
 
 draw_events() {
@@ -397,6 +390,7 @@ render_main() { # $1 = 1 nháy đen
   [ $t -lt $(( TD + DAYS_AHEAD )) ] && t=$(( TD + DAYS_AHEAD ))
   EV=/tmp/dash_events.txt; events "$f" "$t" > "$EV"
 
+  log "render main: begin"
   "$FB" -q -b -k >/dev/null 2>&1
   draw_header
   draw_clock
@@ -407,6 +401,7 @@ render_main() { # $1 = 1 nháy đen
   draw_events
   [ -n "$PHOTO" ] && image "$PHOTO" $PH_X $PH_Y
   refresh "$1"
+  log "render main: done"
 }
 
 update_clock() { # chỉ vẽ lại vùng đồng hồ (nhanh, ít tốn pin)
@@ -568,7 +563,7 @@ go_home() {
   log "go home ($1)"
   "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
-  set_rotation 0
+  [ "$(cat "$ROTF" 2>/dev/null)" != 0 ] && set_rotation 0
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
   rm -f /tmp/dash.pid
@@ -636,18 +631,22 @@ process_taps() {
 ONCE=0
 if [ "$1" = "--once" ]; then
   ONCE=1
-  [ -n "$SERVER_URL" ] || update_data
+  log "test: start"
+  [ -n "$SERVER_URL" ] || { update_data; log "test: data done"; }
   draw 1; log "drawn once"; exit 0
 fi
 
+log "start (pid $$, $(uname -r 2>/dev/null))"
 echo $$ > /tmp/dash.pid
 rm -f "$TAPQ"
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi
 trap 'WOKE=1' USR1
 stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
+log "framework stopped"
 sleep 2
+"$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
-set_rotation "$ROT"
+[ "$ROT" != 0 ] && set_rotation "$ROT"
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 
@@ -659,7 +658,7 @@ while true; do
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
     log "low battery, stopping"; set_rotation 0; exit 0
   fi
-  [ -n "$SERVER_URL" ] || update_data
+  [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
