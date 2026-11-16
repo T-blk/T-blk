@@ -1,0 +1,5 @@
+# Mỗi dòng là một việc (tối đa 8). Dòng bắt đầu bằng # bị bỏ qua.
+# Sửa file này qua USB: /Volumes/Kindle/dashboard/todo.txt
+Họp team 9:30
+Review báo cáo tuần
+Gọi khách hàng A

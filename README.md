@@ -31,33 +31,43 @@ python3 dashboard_server.py                         # chạy server :8080
 
 ## 2. Kindle (PW2 firmware 5.12.2.2, đã jailbreak bằng WinterBreak2)
 
-Firmware này dùng bộ jailbreak "hdnext". KUAL **không chạy**, nên dashboard
-được làm dưới dạng **scriptlet**: file `.sh` đặt trong `documents/` sẽ hiện
-trong thư viện như một cuốn sách, bấm vào là chạy.
+Mặc định **Kindle tự vẽ dashboard**, không cần máy tính: giờ và ngày lấy
+từ đồng hồ của Kindle, thời tiết lấy thẳng từ Open-Meteo qua Wi-Fi, việc cần
+làm đọc từ `dashboard/todo.txt`. Chữ được vẽ bằng FBInk (lấy từ gói KOReader)
+với phông Noto Sans, có đầy đủ dấu tiếng Việt.
 
-1. Cắm Kindle vào Mac, chép file vào Kindle:
+KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
+**scriptlet**: file `.sh` trong `documents/` hiện như sách, bấm vào là chạy.
+
+1. Cắm Kindle vào Mac và chép file:
    ```bash
    ditto --norsrc --noextattr --noacl kindle/dashboard /Volumes/Kindle/dashboard
    ditto --norsrc --noextattr --noacl kindle/documents /Volumes/Kindle/documents
    find /Volumes/Kindle -name '._*' -delete
+   diskutil eject /Volumes/Kindle
    ```
-2. Sửa `SERVER_URL` trong `/Volumes/Kindle/dashboard/dash.conf` thành IP của
-   Mac (`ipconfig getifaddr en0`), rồi chạy `diskutil eject /Volumes/Kindle`.
-3. Trên Kindle (bật Wi-Fi, cùng mạng với Mac), trong thư viện:
-   - **Dashboard - Test**: vẽ 1 lần, giao diện Kindle vẫn chạy. Log ghi vào `dashboard/test.log`.
-   - **Dashboard - Bat**: tắt giao diện Kindle, làm mới liên tục.
+2. Sửa tuỳ ý trong `/Volumes/Kindle/dashboard/`:
+   - `dash.conf`: tiêu đề, thành phố và toạ độ, câu trích dẫn, chu kỳ làm mới.
+   - `todo.txt`: danh sách việc.
+3. Trên Kindle, trong thư viện:
+   - **Dashboard - Test**: vẽ 1 lần, giao diện Kindle vẫn chạy và sẽ vẽ đè lên. Log ghi vào `dashboard/test.log`.
+   - **Dashboard - Bat**: tắt giao diện Kindle, đồng hồ cập nhật mỗi phút, thời tiết mỗi 30 phút.
    - **Dashboard - Tat**: tắt dashboard (khi giao diện Kindle còn bấm được).
-4. **Thoát khi đang ở chế độ dashboard**: giữ nút nguồn khoảng 20 giây để
-   khởi động lại. Dashboard không tự chạy khi máy khởi động.
+4. **Thoát khi đang ở dashboard**: giữ nút nguồn khoảng 20 giây để khởi
+   động lại. Dashboard không tự chạy khi máy khởi động.
+
+Muốn hiện những thứ Kindle không tự lấy được (lịch, Notion...), điền
+`SERVER_URL` trong `dash.conf` để chuyển sang chế độ tải ảnh từ
+`server/dashboard_server.py`.
 
 ## Pin
 
-Mặc định `DEEP_SLEEP=0`. Nếu bật `DEEP_SLEEP=1` (chưa thử trên máy thật), giữa hai lần làm mới Kindle ngủ sâu và tắt Wi-Fi.
-Làm mới 10 phút/lần thì pin trụ được cỡ vài ngày đến 1–2 tuần, tuỳ tình
-trạng pin. Muốn dùng 24/7 thì cứ để cắm sạc. Nếu máy không tự thức dậy, đổi
-`RTC_DEV` sang `/dev/rtc0` hoặc đặt `DEEP_SLEEP=0`.
+Ở chế độ Bat, Kindle không ngủ (đồng hồ cập nhật mỗi phút) nên pin chỉ trụ
+khoảng một đến vài ngày, chưa đo trên máy thật. Muốn dùng 24/7 thì cứ để cắm
+sạc. Muốn tiết kiệm pin thì tăng `REFRESH_MIN` trong `dash.conf`.
 
 ## Gỡ lỗi
 
 - Log nằm ở `dashboard/dash.log` và `dashboard/test.log` trên Kindle.
-- Kindle phải vào được `SERVER_URL`. Kiểm tra firewall trên máy chạy server.
+- Log ghi rõ thời tiết lấy được qua `curl https` hay `wget http`, hoặc báo `fetch failed`.
+- Chế độ server: Kindle phải vào được `SERVER_URL`. Kiểm tra IP của Mac (IP có thể đổi) và tường lửa.
