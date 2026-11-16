@@ -2,7 +2,7 @@
 # Được dash.sh nạp. Dùng chung các biến W H FB DIR.
 
 FONTDIR="$DIR/fonts"
-METRICS="$DIR/lib/metrics.txt"
+
 TXBG=""            # nền đang vẽ chữ lên (vd GRAYE trên thẻ xám) để viền chữ mịn đúng màu
 
 font_path() {
@@ -15,7 +15,7 @@ font_path() {
   esac
 }
 # có font Inter chưa (bản cũ chưa chép font thì quay về Noto)
-modern_ok() { [ -f "$FONTDIR/Inter-Regular.ttf" ] && [ -f "$METRICS" ]; }
+modern_ok() { [ -f "$FONTDIR/Inter-Regular.ttf" ] && [ -f "$DIR/lib/metrics/reg.txt" ]; }
 
 # Thông số dọc của font (phần nghìn em): K = cao dòng FBInk, ASC = đỉnh tới đường chân chữ, CAP = cao chữ hoa
 fmetric() {
@@ -32,8 +32,8 @@ top_for_cap() { fmetric "$1"; echo $(( $3 - $2 * (FA - FC) / FK )); }
 # tw KEY PX "chữ" -> độ rộng (px)
 tw() {
   if [ "$1" = sym ]; then echo $(( ${#3} * $2 / 3 )); return; fi
-  printf '%s\n' "$3" | awk -v MF="$METRICS" -v FK="$1" -v PX="$2" '
-    BEGIN { while ((getline l < MF) > 0) { n = split(l, a, "\t"); if (a[1] == "@") { if (a[2] == FK) K = a[3] } else if (a[1] == FK) A[a[2]] = a[3] }
+  printf '%s\n' "$3" | awk -v MF="$DIR/lib/metrics/$1.txt" -v PX="$2" '
+    BEGIN { FS = "\t"; while ((getline l < MF) > 0) { split(l, a, "\t"); if (a[1] == "@") K = a[2]; else A[a[1]] = a[2] }
             if (K == "") K = 1209 }
     { s = 0; i = 1; L = length($0)
       while (i <= L) {
@@ -86,7 +86,7 @@ txfit() {
 txw() {
   _f=$(font_path "$1"); _r=$(( W - $3 - $6 )); [ $_r -lt 0 ] && _r=0
   _bt=$(( H - $4 - $7 )); [ $_bt -lt 0 ] && _bt=0
-  "$FB" -q -b -O $(fbcolor_bg "${8:-k}") -t "regular=$_f,px=$2,top=$4,left=$3,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
+  "$FB" -q -b -O $TXTOPT $(fbcolor_bg "${8:-k}") -t "regular=$_f,px=$2,top=$4,left=$3,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
 }
 
 rect() { # x y w h [màu FBInk: BLACK GRAY6 GRAYC GRAYE WHITE ...]

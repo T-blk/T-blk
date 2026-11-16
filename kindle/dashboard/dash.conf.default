@@ -31,6 +31,9 @@ CLOCK_STYLE=auto
 EVENT_STYLE=auto
 # Ảnh: tran polaroid tron nhan bia  (cần chạy lại them-anh.command để có đủ cỡ ảnh)
 PHOTO_STYLE=auto
+# Tiết kiệm pin: tắt Wi-Fi giữa các lần tải (1 = bật). Tắt đèn nền khi đang ở màn hình "vắng mặt" (toilet, ra ngoài...)
+WIFI_SAVE=1
+STATUS_DIM=1
 # ----- Đèn nền & ban đêm -----
 # Đèn nền 0-24 (0 = tắt). Để trống = không đụng tới đèn.
 LIGHT_DAY=8

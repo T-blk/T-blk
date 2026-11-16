@@ -1,0 +1,41 @@
+# Câu "hook" cho màn hình trạng thái: mã|câu. Thêm/sửa thoải mái, mỗi dòng một câu.
+taptrung|Đang vào guồng. Có gì nhắn tin, đừng gọi tên nha.
+taptrung|Não đang chạy hết công suất. Vui lòng không làm phiền.
+taptrung|Deep work mode: ON. Thế giới chờ mình chút xíu.
+taptrung|Một việc mỗi lúc. Xong việc này rồi nói chuyện tiếp.
+taptrung|Đang nấu ý tưởng, mở nắp là hỏng.
+taptrung|Tập trung là siêu năng lực. Đang dùng đây.
+hop|Đang họp. Nếu cháy nhà thì gõ cửa, còn lại để sau.
+hop|Mic có thể đang mở. Cẩn thận lời nói.
+hop|Họp xong sẽ trả lời ngay, hứa đó.
+hop|Đang gật gù rất chuyên nghiệp.
+goidien|Đang nghe máy. Giữ yên lặng giúp mình nha.
+goidien|Alo alo... chờ mình một chút.
+goidien|Cuộc gọi quan trọng, nói nhỏ thôi.
+roidi|Ra ngoài một chút, quay lại ngay.
+roidi|Mình đi đâu đó cho đời nở hoa, lát về.
+roidi|Không phải biến mất, chỉ là tạm vắng.
+roidi|Đi lo việc khác. Cái ghế này vẫn là của mình.
+roidi|Đi một vòng nạp năng lượng, về làm tiếp.
+toilet|Toilet time. Việc lớn của đời người.
+toilet|Đang giải quyết vấn đề cấp bách nhất hôm nay.
+toilet|Năm phút thôi. Có thể là mười.
+toilet|Thiên nhiên gọi, mình phải nghe.
+toilet|Đi "suy nghĩ" một chút, về liền.
+cafe|Cà phê thư giãn. Sạc pin cho não.
+cafe|Một ngụm cà phê, ngàn ý tưởng.
+cafe|Đang nghỉ giải lao. Làm việc chăm thì nghỉ cũng phải chăm.
+cafe|Chưa cà phê thì chưa là người.
+cafe|Nghỉ 10 phút, hiệu quả gấp đôi.
+antrua|Đi ăn trưa. Bụng đói thì đầu cũng đói.
+antrua|Có thực mới vực được đạo. Lát gặp.
+antrua|Đang nạp năng lượng cho buổi chiều.
+antrua|Cơm trưa là chân ái.
+ngutrua|Ngủ trưa 20 phút. Ai gọi dậy là... thôi khỏi.
+ngutrua|Đang sạc pin sinh học.
+ngutrua|Suỵt... đang mơ thấy deadline được dời.
+ngutrua|Chợp mắt chút xíu, chiều tỉnh như sáo.
+vengay|Tan làm rồi! Hẹn gặp lại ngày mai.
+vengay|Đã off. Việc còn lại để mai tính.
+vengay|Về nhà thôi. Hôm nay vậy là đủ tốt rồi.
+vengay|Ngày dài đã qua. Nghỉ ngơi đi bạn ơi.

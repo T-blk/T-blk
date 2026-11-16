@@ -9,6 +9,10 @@
 #        ./them-anh.command ~/Desktop/anh1.jpg ~/Desktop/thu-muc-anh )
 #
 #  Muốn XOÁ ảnh khỏi Kindle: xoá ảnh đó trong thư mục cho-kindle rồi chạy lại.
+#
+#  Ảnh riêng cho màn hình trạng thái (anime, meme... của bạn): bỏ vào thư mục con
+#  cho-kindle/trangthai, đặt tên theo mã: taptrung hop goidien roidi toilet cafe antrua ngutrua vengay
+#  (vd toilet.jpg, cafe_1.png, cafe_2.png). Không có thì dùng hình minh hoạ có sẵn.
 # =====================================================================
 set -u
 SRC="${SRC:-$HOME/Pictures/cho-kindle}"
@@ -20,7 +24,7 @@ OUT="$ROOT/kindle/dashboard/photos"
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mLỖI: %s\033[0m\n' "$*"; read -r -p "Nhấn Enter để đóng..." _; exit 1; }
 
-mkdir -p "$SRC"
+mkdir -p "$SRC" "$SRC/trangthai"
 
 # 1) Ảnh truyền vào (kéo thả trong Terminal) -> chép vào thư mục nguồn
 if [ $# -gt 0 ]; then

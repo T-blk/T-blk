@@ -80,6 +80,7 @@ next_event() { # từ $EV -> NE_SUM NE_WHEN NE_LEFT (rỗng nếu không có)
 # ---------- Thanh biểu tượng góc trên (trang phụ) ----------
 page_icons() { # $1 = y
   y=${1:-14}
+  [ "$PAGE" != tin ] && txt 30 $y $(( W - 300 )) "$I_COFFEE" s
   txt 30 $y $(( W - 226 )) "$I_PAGES" s
   txt 30 $y $(( W - 150 )) "$I_GEAR" s
   [ -n "$UPD_AVAIL" ] && box $(( y + 2 )) $(( W - 122 )) 10 10
@@ -89,6 +90,7 @@ page_header_tap() { # x -> 0 nếu đã xử lý
   if [ $1 -ge $(( W - 100 )) ]; then go_home "tap Home"
   elif [ $1 -ge $(( W - 172 )) ]; then VIEW=settings
   elif [ $1 -ge $(( W - 250 )) ]; then page_next 1
+  elif [ $1 -ge $(( W - 320 )) ] && [ "$PAGE" != tin ]; then VIEW=stpick
   else return 1; fi
   return 0
 }
@@ -101,7 +103,7 @@ status_icons() { # x y : wifi + pin (+ đang sạc)
 }
 
 page_events() { # nạp sự kiện từ hôm nay
-  f=$TD; t=$(( TD + DAYS_AHEAD )); EV=/tmp/dash_events.txt; events "$f" "$t" > "$EV"
+  f=$TD; t=$(( TD + DAYS_AHEAD )); EV=/tmp/dash_events.txt; events_to "$f" "$t" "$EV"
 }
 
 # ---------- Trang Bảng tin ----------
@@ -260,8 +262,14 @@ handle_swipe() {
   dx=$(( bx - ax )); dy=$(( by - ay )); adx=${dx#-}; ady=${dy#-}
   LAST_TOUCH=$(date +%s)
   log "swipe dx=$dx dy=$dy view=$VIEW page=$PAGE"
+  if [ $ady -ge 160 ] && [ $ady -gt $adx ]; then          # vuốt dọc
+    [ $dy -lt 0 ] && [ "$VIEW" = main ] && VIEW=stpick         # vuốt lên: chọn trạng thái
+    [ $dy -gt 0 ] && [ "$VIEW" = stpick ] && VIEW=main
+    return 0
+  fi
   [ $adx -ge 120 ] && [ $adx -ge $ady ] || return 0
   case "$VIEW" in
+    status) status_swipe $dx ;;
     main) if [ $dx -lt 0 ]; then page_next 1; else page_next -1; fi ;;
     photo) if [ $dx -lt 0 ]; then PHOFF=$((PHOFF + 1)); else PHOFF=$((PHOFF - 1)); fi ;;
     pick) if [ $dx -lt 0 ]; then PICKPAGE=$((PICKPAGE + 1)); else PICKPAGE=$((PICKPAGE - 1)); [ $PICKPAGE -lt 0 ] && PICKPAGE=0; fi ;;

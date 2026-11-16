@@ -28,6 +28,7 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/ui.sh"
 . "$DIR/lib/widgets.sh"
 . "$DIR/lib/layouts.sh"
+. "$DIR/lib/status.sh"
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
 WX=/tmp/dash_weather.json
@@ -39,12 +40,19 @@ BOLD="$DIR/fonts/NotoSans-Bold.ttf"
 SYM="$DIR/fonts/symbols.ttf"
 ROTF=/sys/class/graphics/fb0/rotate
 
-log() { echo "$(date '+%F %T') $*"; sync 2>/dev/null; }
+# Ghi log không "sync" mỗi dòng (đỡ ghi bộ nhớ flash -> nhẹ máy, đỡ pin). Log quá 300 KB thì cắt bớt.
+log() { echo "$(date '+%F %T') $*"; }
+log_trim() {
+  f="$DIR/dash.log"; [ -f "$f" ] || return 0
+  [ $(wc -c < "$f") -gt 307200 ] && { tail -c 102400 "$f" > "$f.tmp" && cat "$f.tmp" > "$f"; rm -f "$f.tmp"; }
+  sync 2>/dev/null
+}
 cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"
 
 battery() { lipc-get-prop com.lab126.powerd battLevel 2>/dev/null || gasgauge-info -c 2>/dev/null | tr -d '%'; }
 
 wifi_on() {
+  WIFI_USED=1
   lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null
   lipc-set-prop com.lab126.wifid enable 1 2>/dev/null
   i=0
@@ -53,6 +61,12 @@ wifi_on() {
     sleep 1; i=$((i + 1))
   done
   return 1
+}
+
+# Tiết kiệm pin: tắt Wi-Fi khi không cần (bật lại tự động lúc tải thời tiết/lịch/tin, đọc báo, cập nhật)
+wifi_save() {
+  [ "${WIFI_SAVE:-1}" = 1 ] || return 0
+  lipc-set-prop com.lab126.cmd wirelessEnable 0 2>/dev/null && log "wifi off (tiết kiệm pin)"
 }
 
 fetch() { # $1=url $2=file $3=chuỗi bắt buộc có
@@ -101,7 +115,7 @@ update_data() {
   [ "${TIME_SYNC:-1}" = 1 ] && due "$TS_STAMP" "${TIME_SYNC_MIN:-360}" && need=1
   [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN" && need=1
   [ $need = 1 ] || return 0
-  wifi_on || { log "no wifi"; return 1; }
+  wifi_on || { log "no wifi"; wifi_save; return 1; }
   time_sync
   if [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440; then
     r=$(sh "$DIR/update.sh" --check 2>/dev/null); date +%s > /tmp/dash_otacheck; log "update check: $r"
@@ -123,6 +137,7 @@ update_data() {
     done
     date +%s > "$CALDIR/stamp"
   fi
+  WIFI_USED=0; wifi_save
   DATA_CHANGED=1
 }
 
@@ -234,6 +249,7 @@ is_night() {
   else [ "$h" -ge "$NIGHT_START" ] && [ "$h" -lt "$NIGHT_END" ]; fi
 }
 light_level() {
+  [ "$VIEW" = status ] && [ "${STATUS_DIM:-1}" = 1 ] && status_away "$ST_ID" && { echo 0; return; }
   l="$LIGHT_DAY"; is_night && l="$LIGHT_NIGHT"
   [ -z "$l" ] && { echo ""; return; }
   l=$(( l + LADJ )); [ $l -lt 0 ] && l=0; [ $l -gt 24 ] && l=24; echo "$l"
@@ -267,7 +283,7 @@ pick_photo() { # $1 = thư mục con -> đường dẫn ảnh hiện tại
 # ---------- Bố cục ----------
 set_layout() {
   if [ $W -gt $H ]; then          # NGANG 1024x758
-    B_LMIN=676; B_LPLUS=740; B_PAGE=812; B_GEAR=878; B_HOME=946
+    B_STATUS=610; B_LMIN=676; B_LPLUS=740; B_PAGE=812; B_GEAR=878; B_HOME=946
     CLK_X=36; CLK_Y=80; CLK_W=460; CLK_H=200; CLK_PX=170; ANA_X=170; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=land; WX_X=40; WX_Y=316
@@ -276,7 +292,7 @@ set_layout() {
     EV_X=40; EV_Y=472; EV_W=460; EV_N=3; EV_STEP=90; EV_Y2=758
     PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270; GREET_X=742; GREET_W=243; ORN_TAG=ngang
   else                            # DỌC 758x1024
-    B_LMIN=404; B_LPLUS=468; B_PAGE=544; B_GEAR=610; B_HOME=678
+    B_STATUS=338; B_LMIN=404; B_LPLUS=468; B_PAGE=544; B_GEAR=610; B_HOME=678
     CLK_X=30; CLK_Y=82; CLK_W=416; CLK_H=196; CLK_PX=190; ANA_X=128; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=side; WX_X=460; WX_Y=88
@@ -297,17 +313,19 @@ date_text() {
   esac
 }
 
-lunar_today() { # -> LD LM LY LEAP CANCHI
+lunar_today() { # -> LD LM LY LEAP CANCHI   (tính 1 lần mỗi ngày)
+  [ "$LUN_KEY" = "$Y.$M.$D" ] && return 0; LUN_KEY="$Y.$M.$D"
   set -- $(awk -v MODE=day -v D="$D" -v M="$M" -v Y="$Y" -f "$DIR/lib/lunar.awk" | tr '|' ' ')
   L_D=$1; L_M=$2; L_Y=$3; L_LEAP=$4; L_CC="$5 $6"
 }
-holiday() { # -> HOLI_THEME HOLI_TEXT
+holiday() { # -> HOLI_THEME HOLI_TEXT   (tính 1 lần mỗi ngày)
+  [ "$HOLI_KEY" = "$Y.$M.$D.$ORNAMENT" ] && return 0; HOLI_KEY="$Y.$M.$D.$ORNAMENT"
   HOLI_THEME=""; HOLI_TEXT=""
   [ "$ORNAMENT" = 0 ] && return
   lunar_today
   r=$(awk -v D="$D" -v M="$M" -v Y="$Y" -v LD="$L_D" -v LM="$L_M" -v LEAP="$L_LEAP" -f "$DIR/lib/holiday.awk")
   HOLI_THEME=${r%%|*}; HOLI_TEXT=${r#*|}
-  [ "$ORNAMENT" = thuong ] && HOLI_THEME=macdinh
+  case "$ORNAMENT" in thuong) HOLI_THEME=macdinh ;; hoala|hoanhai|ladeo) HOLI_THEME=$ORNAMENT ;; esac
 }
 draw_ornaments() {
   [ -n "$HOLI_THEME" ] || return 0
@@ -371,8 +389,9 @@ draw_clock() { # vẽ vùng đồng hồ (không refresh)
 
 draw_header() {
   b=$(battery); BATT="$b"
-  txt 32 20 40 "$(date_text)" b $(( B_LMIN - 60 ))
+  txt 32 20 40 "$(date_text)" b $(( B_STATUS - 56 ))
   if [ "$ONCE" != 1 ]; then
+    txt 30 20 $B_STATUS "$I_COFFEE" s
     l=$(light_level)
     if [ -n "$l" ]; then
       txt 30 20 $B_LMIN "$I_BRIGHT" s; txt 26 22 $(( B_LMIN + 32 )) "–" b
@@ -429,6 +448,13 @@ events() { # KEY|DAY|MIN|ALL|LABEL|SUMMARY từ $1..$2
     awk -v TODAY="$TD" -v FROM="$1" -v TO="$2" -v TZOFF="$TZ_OFFSET_MIN" \
         -v LABEL="$(cat "${f%.ics}.label" 2>/dev/null)" -f "$DIR/lib/ical.awk" "$f"
   done | sort -n
+}
+
+# Sự kiện: chỉ đọc lại file .ics khi lịch vừa tải về hoặc khoảng ngày đổi (đỡ tốn CPU mỗi lần vẽ)
+events_to() { # FROM TO FILE
+  k="$1.$2.$TD.$(cat "$CALDIR/stamp" 2>/dev/null).$ICS_URL"
+  [ "$k" = "$EV_KEY" ] && [ -f "$3" ] && return 0
+  events "$1" "$2" > "$3"; EV_KEY="$k"
 }
 
 draw_calendar() {
@@ -504,7 +530,7 @@ render_main() { # $1 = 1 nháy đen
   while [ $cm -lt 1 ]; do cm=$((cm + 12)); cy=$((cy - 1)); done
   f=$(epoch_day $cy $cm 1); t=$(( f + 31 )); [ $f -gt $TD ] && f=$TD
   [ $t -lt $(( TD + DAYS_AHEAD )) ] && t=$(( TD + DAYS_AHEAD ))
-  EV=/tmp/dash_events.txt; events "$f" "$t" > "$EV"
+  EV=/tmp/dash_events.txt; events_to "$f" "$t" "$EV"
 
   log "render main: begin"
   holiday
@@ -553,7 +579,7 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Hôm nay (Cổ điển)|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
-ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt'
+ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main
 settings_def() { if [ "$SET_GROUP" = look ]; then echo "$SETTINGS_LOOK"; else echo "$SETTINGS_DEF"; fi; }
 SETTINGS_DEF='@LOOK|Giao diện…|
@@ -562,6 +588,8 @@ NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đan
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
+WIFI_SAVE|Tiết kiệm Wi-Fi|1=Bật (tắt Wi-Fi giữa các lần tải);0=Tắt (luôn bật)
+STATUS_DIM|Tắt đèn khi vắng mặt|1=Bật;0=Tắt
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
 LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
 LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
@@ -632,6 +660,7 @@ settings_tap() { # x y
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
   if [ "$key" = "@UPDATE" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang kiểm tra bản mới…" >/dev/null 2>&1
+    wifi_on >/dev/null 2>&1
     r=$(sh "$DIR/update.sh" --check 2>/dev/null); date +%s > /tmp/dash_otacheck; log "update check: $r"
     UPD_MSG=""; UPD_AVAIL=""
     case "$r" in
@@ -826,6 +855,7 @@ update_tap() { # x y
     log "user started update to $UPD_AVAIL"
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang cập nhật lên bản $UPD_AVAIL…" >/dev/null 2>&1
     rm -f /tmp/dash.pid
+    wifi_on >/dev/null 2>&1
     nohup sh "$DIR/update.sh" --install --restart >> "$(dirname "$DIR")/dashboard_update.log" 2>&1 &
     exit 0
   fi
@@ -863,7 +893,7 @@ draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
-    reader) render_reader ;;
+    reader) render_reader ;; status) render_status ;; stpick) render_stpick ;;
     *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
@@ -906,6 +936,8 @@ handle_tap() {
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
     reader) reader_tap $x $y; return ;;
+    status) status_tap $x $y; return ;;
+    stpick) stpick_tap $x $y; return ;;
     choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
     confirm) confirm_tap $x $y; return ;;
@@ -939,6 +971,7 @@ handle_tap() {
     elif [ $x -ge $(( B_PAGE - 10 )) ]; then page_next 1
     elif [ $x -ge $(( B_LPLUS - 8 )) ] && [ $x -lt $(( B_LPLUS + 60 )) ]; then LADJ=$((LADJ + 2)); set_light
     elif [ $x -ge $(( B_LMIN - 8 )) ] && [ $x -lt $(( B_LMIN + 60 )) ]; then LADJ=$((LADJ - 2)); set_light
+    elif [ $x -ge $(( B_STATUS - 12 )) ] && [ $x -lt $(( B_STATUS + 50 )) ]; then VIEW=stpick
     fi
     return
   fi
@@ -960,6 +993,7 @@ handle_tap() {
 
 idle_reset() {
   [ $LAST_TOUCH = 0 ] && return
+  case "$VIEW" in status) return ;; esac
   lim=$IDLE_RESET_MIN; [ "$VIEW" = reader ] && lim=15
   [ $(( $(date +%s) - LAST_TOUCH )) -ge $(( lim * 60 )) ] || return
   MOFF=0; EVPAGE=0; LAST_TOUCH=0; [ "$VIEW" != main ] && VIEW=main; LAST_KEY=""
@@ -1001,6 +1035,9 @@ log "start (pid $$, $(uname -r 2>/dev/null))"
 rm -f /tmp/dash_stop
 echo $$ > /tmp/dash.pid
 rm -f "$TAPQ"
+if [ -f "$DIR/start_view" ]; then sv=$(cat "$DIR/start_view"); rm -f "$DIR/start_view"
+  case "$sv" in stpick) VIEW=stpick ;; ?*) status_name "$sv" >/dev/null && [ -n "$(status_name "$sv")" ] && status_enter "$sv" ;; esac
+fi
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi
 trap 'WOKE=1' USR1
 LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
@@ -1031,12 +1068,17 @@ while true; do
   [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   pomo_tick && TAPPED=1
+  LOOPN=$(( ${LOOPN:-0} + 1 )); [ $(( LOOPN % 60 )) = 0 ] && log_trim
+  if [ "$WIFI_USED" = 1 ] && [ "$VIEW" != reader ] && [ "$VIEW" != update ]; then WIFI_USED=0; wifi_save; fi
   [ "$VIEW" = main ] && auto_page
   set_light
   # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
   mnow=$(date +%M | sed 's/^0//'); key="$(date +%Y%m%d%H)$(( mnow / 15 ))"
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
-  if [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
+  if [ "$VIEW" = status ]; then
+    key=$(status_key)
+    if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then draw 0; LAST_KEY="$key"; else status_tick; fi
+  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
     LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
     [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0

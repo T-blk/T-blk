@@ -38,7 +38,7 @@ lay_data() {
   CAL_M=$cm; CAL_YR=$cy
   f=$(epoch_day $cy $cm 1); t=$(( f + 42 )); [ $f -gt $TD ] && f=$TD
   [ $t -lt $(( TD + DAYS_AHEAD )) ] && t=$(( TD + DAYS_AHEAD ))
-  EV=/tmp/dash_events.txt; events "$f" "$t" > "$EV"
+  EV=/tmp/dash_events.txt; events_to "$f" "$t" "$EV"
   WX_OK=0; parse_weather && WX_OK=1
   BATT=$(battery)
 }
@@ -47,6 +47,7 @@ lay_toolbar() { # biểu tượng nhỏ màu xám ở góc phải trên
   [ "$ONCE" = 1 ] && return
   set_layout                                   # B_LMIN B_LPLUS B_PAGE B_GEAR B_HOME
   c=${1:-m}
+  tx sym 28 $B_STATUS 20 "$I_COFFEE" l $c
   if [ -n "$(light_level)" ]; then
     tx sym 26 $B_LMIN 22 "$I_BRIGHT" l $c; tx semi 22 $(( B_LMIN + 30 )) 22 "–" l $c
     tx sym 26 $B_LPLUS 22 "$I_BRIGHT" l $c; tx semi 22 $(( B_LPLUS + 30 )) 22 "+" l $c
@@ -71,7 +72,7 @@ weather_line() { [ $WX_OK = 1 ] && echo "$WX_DESC   ${WX_MIN}° / ${WX_MAX}°   
 
 # ---------------- 1. Tối giản ----------------
 render_l_toigian() {
-  tx semi 20 40 26 "$(up "$(pick "$WD_LONG" "$(date +%w)") · $D tháng $M")" l m 350
+  tx semi 20 40 26 "$(up "$(pick "$WD_LONG" "$(date +%w)") · $D tháng $M")" l m 280
   lay_toolbar
   w_clock $CB $CA
   lt="Âm lịch $(lunar_short) · $L_CC"; [ -n "$HOLI_TEXT" ] && lt="$lt · $HOLI_TEXT"
@@ -149,7 +150,7 @@ cal_swiss() { # x y : lịch tháng kiểu lưới Thụy Sĩ
 render_l_the() {
   if [ -f "$DIR/ui/bg_the.png" ]; then image "$DIR/ui/bg_the.png" 0 0; else rect 0 0 $W $H GRAYE; fi
   TXBG=GRAYE
-  tx semi 28 44 22 "$(pick "$WD_LONG" "$(date +%w)"), $D tháng $M" l k 350
+  tx semi 28 44 22 "$(pick "$WD_LONG" "$(date +%w)"), $D tháng $M" l k 284
   lay_toolbar d
   TXBG=""
   w_clock $CB $CA

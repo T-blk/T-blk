@@ -3,7 +3,7 @@
 
 - Cắt font Inter / JetBrains Mono chỉ còn ký tự Latin + tiếng Việt, đổi CFF -> TrueType (glyf)
   cho chắc ăn với FBInk (stb_truetype).
-- Sinh lib/metrics.txt: độ rộng từng ký tự (phần nghìn em) để dash.sh căn giữa / căn phải chính xác.
+- Sinh lib/metrics/<font>.txt: độ rộng từng ký tự (phần nghìn em) để dash.sh căn giữa / căn phải chính xác.
 
     python3 tools/make_fonts.py kindle/dashboard
 """
@@ -111,8 +111,19 @@ def main():
         print(f"{name}: {os.path.getsize(out) // 1024} KB")
     for key, name in NOTO.items():
         lines += metrics_lines(key, TTFont(os.path.join(fdir, name)))
-    with open(os.path.join(dst, "lib", "metrics.txt"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
+    # mỗi font một file nhỏ (đo nhanh hơn ~9 lần trên Kindle): dòng đầu "@ K", sau đó "ký_tự<TAB>độ_rộng"
+    md = os.path.join(dst, "lib", "metrics")
+    os.makedirs(md, exist_ok=True)
+    per = {}
+    for ln in lines:
+        a = ln.split("\t")
+        if a[0] == "@":
+            per.setdefault(a[1], []).insert(0, "@\t" + a[2])
+        else:
+            per.setdefault(a[0], []).append(a[1] + "\t" + a[2])
+    for k, v in per.items():
+        with open(os.path.join(md, k + ".txt"), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(v) + "\n")
     print("metrics:", len(lines), "dòng")
 
 

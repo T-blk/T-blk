@@ -10,6 +10,9 @@ Tạo các cỡ ảnh PNG thang xám (định dạng `eips -g` đọc được):
   photos/v/RxC[m]/*.png  cỡ riêng cho từng ô ảnh x kiểu hiển thị (tràn, polaroid, tròn, nhãn, bìa)
                          m: r = bo góc (thẻ), t = bo 2 góc trên, c = tròn
   photos/captions.txt    chú thích (tên file gốc, giữ dấu tiếng Việt)
+  photos/status/*.png    ảnh riêng cho màn hình trạng thái, lấy từ thư mục con "trangthai"
+                         (đặt tên theo mã: taptrung hop goidien roidi toilet cafe antrua ngutrua vengay,
+                          vd toilet.jpg, toilet_2.png — nhiều ảnh thì mỗi lần vào đổi một ảnh)
 
     python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 """
@@ -108,6 +111,32 @@ def caption(src):
     return stem.replace("|", "/")
 
 
+STATUS_IDS = ["taptrung", "hop", "goidien", "roidi", "toilet", "cafe", "antrua", "ngutrua", "vengay"]
+
+
+def convert_status(srcdirs, dst):
+    n = 0
+    for sd in srcdirs:
+        sub = os.path.join(sd, "trangthai")
+        if not os.path.isdir(sub):
+            continue
+        used = set()
+        for src in collect([sub]):
+            stem = out_name(src, used)
+            sid = next((s for s in STATUS_IDS if stem.lower().startswith(s)), None)
+            if not sid:
+                print(f"bỏ qua {os.path.basename(src)}: tên phải bắt đầu bằng một mã {STATUS_IDS}")
+                continue
+            img = ImageOps.exif_transpose(Image.open(src)).convert("L")
+            img = ImageEnhance.Contrast(img).enhance(1.1)
+            for d, box in ((os.path.join(dst, "status"), (758, 560)), (os.path.join(dst, "status", "land"), (580, 650))):
+                os.makedirs(d, exist_ok=True)
+                ImageOps.pad(img, box, Image.LANCZOS, color=255).save(os.path.join(d, stem.lower()), "PNG", optimize=True)
+            n += 1
+            print(f"-> trạng thái {sid}: {os.path.basename(src)}")
+    return n
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -128,6 +157,7 @@ def main():
             print(f"-> {os.path.basename(src)}  ->  {name}")
         except Exception as e:  # HEIC cần pillow-heif: pip3 install pillow-heif
             print(f"bỏ qua {src}: {e}")
+    convert_status([s for s in srcs if os.path.isdir(s)], dst)
     with open(os.path.join(dst, "captions.txt"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(caps) + ("\n" if caps else ""))
     print(f"Xong {n} ảnh.")

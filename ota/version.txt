@@ -1,4 +1,4 @@
-version=2026.11.16.07
-sha256=4ccdd815f6c8de62ae716a0c1f40dfc987badb64c429c88467502a90d8d96bab
-size=4606227
-notes=Giao diện mới: 7 bố cục (Tối giản, Thụy Sĩ, Thẻ, Ảnh lớn, Chữ, Lịch), 10 kiểu đồng hồ, 8 kiểu sự kiện, 5 kiểu ảnh — chọn riêng trong Cài đặt > Giao diện
+version=2026.11.16.08
+sha256=426d3e20e8ea3a2dedb600bad197c681699637549a5d54530f8e9abf2bb2f7de
+size=4851673
+notes=Màn hình trạng thái (tập trung, họp, toilet, cà phê, ăn trưa...) + nút chuyển nhanh; viền hoa lá; tiết kiệm pin (tắt Wi-Fi giữa các lần tải, tắt đèn khi vắng mặt); vẽ nhanh hơn

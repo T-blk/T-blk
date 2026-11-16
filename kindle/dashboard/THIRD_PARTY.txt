@@ -11,3 +11,4 @@ fonts/Inter-*.ttf    Inter (Rasmus Andersson), SIL Open Font License 1.1. Đã c
 fonts/JBMono-*.ttf   JetBrains Mono, SIL Open Font License 1.1 (cắt bớt như trên).
 clockm/, ring/, ui/bg_the.png  Sinh bởi tools/make_modern_assets.py.
 ui/*_STYLE_*.png, ui/LAYOUT_*.png  Ảnh xem trước, chụp từ chính giao diện.
+ui/status/*.png, ui/flora_div.png, ornaments/{hoala,hoanhai,ladeo}_*  Tự vẽ bằng tools/make_status_art.py.
