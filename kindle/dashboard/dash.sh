@@ -563,10 +563,10 @@ draw() {
 go_home() {
   log "go home ($1)"
   touch /tmp/dash_stop; rm -f /tmp/dash.pid          # báo bộ đọc cảm ứng dừng hẳn
-  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
+  [ "$(cat "$ROTF" 2>/dev/null)" != 0 ] && set_rotation 0
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   sleep 1; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
-  [ "$(cat "$ROTF" 2>/dev/null)" != 0 ] && set_rotation 0
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   start framework 2>/dev/null || start lab126_gui 2>/dev/null
   rm -f /tmp/dash.pid

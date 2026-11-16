@@ -30,7 +30,8 @@ go_home() {
   [ -f /tmp/dash.pid ] || { log "ignore $1: dashboard not running"; exit 0; }
   log "go home ($1)"
   touch /tmp/dash_stop
-  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home…" >/dev/null 2>&1
+  [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=44" "Đang về Home… (chờ khoảng 30 giây)" >/dev/null 2>&1
   pkill -f "$DIR/dash.sh" 2>/dev/null
   [ "$(cat /sys/class/graphics/fb0/rotate 2>/dev/null)" != 0 ] && echo 0 > /sys/class/graphics/fb0/rotate 2>/dev/null
   rm -f /tmp/dash.pid
