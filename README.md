@@ -55,7 +55,7 @@ phức tạp như "thứ Hai đầu tiên của tháng".
 ```bash
 python3 tools/prepare_photos.py ~/Pictures/cho-kindle kindle/dashboard/photos
 ```
-Script thu nhỏ ảnh về 298x344, chuyển thang xám và lưu PNG. Sau đó chép thư
+Script tạo 4 cỡ ảnh thang xám (khung dọc, khung ngang, toàn màn hình dọc, toàn màn hình ngang). Sau đó chép thư
 mục `photos` vào Kindle. Ảnh HEIC từ iPhone cần cài thêm `pip3 install pillow-heif`.
 
 KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
@@ -69,14 +69,41 @@ KUAL **không chạy** trên bộ jailbreak "hdnext", nên dashboard là các
    diskutil eject /Volumes/Kindle
    ```
 2. Sửa tuỳ ý trong `/Volumes/Kindle/dashboard/`:
-   - `dash.conf`: tiêu đề, thành phố và toạ độ, câu trích dẫn, chu kỳ làm mới.
-   - `todo.txt`: danh sách việc.
+   - `dash.conf`: thành phố và toạ độ, link lịch, đèn nền, hướng màn hình, chu kỳ làm mới.
+   - `todo.txt`: danh sách việc (hiện khi không có link lịch).
 3. Trên Kindle, trong thư viện:
    - **Dashboard - Test**: vẽ 1 lần, giao diện Kindle vẫn chạy và sẽ vẽ đè lên. Log ghi vào `dashboard/test.log`.
-   - **Dashboard - Bat**: tắt giao diện Kindle, đồng hồ cập nhật mỗi phút, thời tiết mỗi 30 phút.
+   - **Dashboard - Bat**: tắt giao diện Kindle, chạy dashboard có cảm ứng.
    - **Dashboard - Tat**: tắt dashboard (khi giao diện Kindle còn bấm được).
-4. **Thoát khi đang ở dashboard**: giữ nút nguồn khoảng 20 giây để khởi
-   động lại. Dashboard không tự chạy khi máy khởi động.
+   - **Dashboard - Do cam ung**: dò cảm ứng 25 giây, ghi vào `dashboard/touch.log`.
+   - **Dashboard - Tu chay: Bat / Tat**: bật hoặc tắt tự chạy khi khởi động.
+4. **Thoát**: chạm **Về Home** hoặc bấm nút nguồn. Nếu cả hai không ăn, giữ
+   nút nguồn khoảng 20 giây để khởi động lại.
+
+### Chạm trên màn hình (khi đang chạy "Dashboard - Bat")
+| Chạm vào | Tác dụng |
+|---|---|
+| **Về Home** (góc trên phải) hoặc bấm nút nguồn | thoát về giao diện Kindle |
+| **– / +** cạnh chữ "Đèn" | giảm hoặc tăng đèn nền |
+| nửa trái / nửa phải **lịch tháng** | tháng trước / tháng sau |
+| **tiêu đề lịch** ("Tháng …") | về tháng hiện tại |
+| **phần sự kiện** | trang sự kiện tiếp theo |
+| **ảnh** | xem ảnh toàn màn hình. Ở đó chạm trái/phải để xem ảnh trước/sau, chạm phía trên để quay lại |
+
+Sau `IDLE_RESET_MIN` phút không chạm, dashboard tự quay về tháng hiện tại và trang 1.
+
+### Cài đặt trong `dash.conf`
+- `ICS_URL`: nhiều link cách nhau bằng dấu cách. Gắn nhãn bằng `CV=webcal://…` để hiện `[CV]` trước sự kiện.
+- `ORIENTATION=ngang`: bố cục nằm ngang (thử nghiệm). Chữ bị ngược thì đổi `ROTATE_LAND` giữa 1 và 3. Chạm bị lệch thì đặt `LAND_TOUCH_INVERT=1`.
+- `LIGHT_DAY` / `LIGHT_NIGHT`, `NIGHT_START` / `NIGHT_END`, `REFRESH_NIGHT_MIN`, `NIGHT_INVERT`: đèn nền và chế độ ban đêm.
+- `TOUCH_*`: hiệu chỉnh toạ độ chạm (chạy "Do cam ung" rồi xem `touch.log`).
+
+### Tự chạy khi khởi động
+Bấm **Dashboard - Tu chay: Bat** (cần làm một lần). Từ đó, mỗi lần Kindle
+khởi động thì 45 giây sau dashboard tự bật. Muốn tắt: bấm
+**Dashboard - Tu chay: Tat**, hoặc xoá file `dashboard/AUTOSTART` qua USB.
+Scriptlet này ghi một file vào `/etc/upstart` của Kindle, kết quả ghi vào
+`dashboard/autostart.log`.
 
 Muốn hiện những thứ Kindle không tự lấy được (lịch, Notion...), điền
 `SERVER_URL` trong `dash.conf` để chuyển sang chế độ tải ảnh từ
