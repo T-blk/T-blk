@@ -19,7 +19,7 @@ mkdir -p "$STAGE/dashboard" "$STAGE/documents"
 for f in dash.sh touch.sh update.sh VERSION THIRD_PARTY.txt dash.conf.default todo.txt; do
   cp "kindle/dashboard/$f" "$STAGE/dashboard/"
 done
-for d in lib fonts bin ornaments; do cp -R "kindle/dashboard/$d" "$STAGE/dashboard/"; done
+for d in lib fonts bin ornaments ui; do cp -R "kindle/dashboard/$d" "$STAGE/dashboard/"; done
 rm -f "$STAGE/dashboard/todo.txt"             # không ghi đè danh sách việc của người dùng
 cp kindle/documents/*.sh "$STAGE/documents/"
 mkdir -p ota

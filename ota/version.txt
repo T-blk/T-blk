@@ -1,4 +1,4 @@
-version=2026.11.16.02
-sha256=b6500db6a71bb08fa382b06f7666cb1a1619fa6274845c0bb3725103ce6dba7d
-size=1260525
-notes=Cập nhật không dây (OTA): Cài đặt > Cập nhật phần mềm. Hoa văn theo ngày lễ, xoay màn hình, tự chỉnh giờ.
+version=2026.11.16.03
+sha256=ca14777468cc94828e7c9748fb8752b5e55b9d2fada2981da90d730b436adc8c
+size=1267912
+notes=Cài đặt: chạm một mục để mở danh sách lựa chọn. Hướng màn hình có hình minh hoạ.

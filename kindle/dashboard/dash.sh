@@ -517,7 +517,7 @@ TODAY_STYLE|Đánh dấu hôm nay|vong=Vòng tròn;khung=Khung vuông;gach=Gạc
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;thuong=Hoa văn thường;0=Tắt
-ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang trái;ngangphai=Ngang phải
+ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
@@ -590,13 +590,75 @@ settings_tap() { # x y
     esac
     VIEW=update; return
   fi
-  old=$(setting_value "$key")
-  nv=$(setting_next "$key" "$opts"); save_setting "$key" "$nv"; eval "$key=\"$nv\""
-  if [ "$key" = ORIENTATION ]; then
+  CH_KEY="$key"; CH_LABEL=$(echo "$line" | cut -d'|' -f2); CH_OPTS="$opts"; VIEW=choose
+}
+
+# ---------- Trang chọn giá trị (danh sách) ----------
+# Hướng màn hình: lưới 2x2 có hình minh hoạ; các mục khác: danh sách, chạm là chọn.
+choose_geom() {
+  CH_N=$(echo "$CH_OPTS" | tr ';' '\n' | grep -c .)
+  CY0=96
+  if [ "$CH_KEY" = ORIENTATION ]; then
+    CCOLS=2; CW2=$(( (W - 80) / 2 )); CRH=$(( (H - CY0 - 30) / 2 )); [ $CRH -gt 330 ] && CRH=330
+    CPER=4
+  else
+    CRH=70; CPER=$(( (H - CY0 - 20) / CRH )); CCOLS=1
+    [ $CH_N -gt $CPER ] && CCOLS=2
+    CW2=$(( (W - 80) / CCOLS ))
+  fi
+}
+render_choose() {
+  choose_geom
+  cur=$(setting_value "$CH_KEY")
+  "$FB" -q -b -k >/dev/null 2>&1
+  txt 34 18 40 "$I_LEFT" s; txt 34 18 80 "$CH_LABEL" b $(( W - 300 ))
+  txt 30 20 $(( W - 140 )) "Quay lại" "" 120
+  box 72 40 $(( W - 80 )) 2
+  i=0
+  echo "$CH_OPTS" | tr ';' '\n' | while IFS='=' read -r k d; do
+    [ -n "$k" ] || continue
+    if [ "$CH_KEY" = ORIENTATION ]; then
+      col=$(( i % 2 )); row=$(( i / 2 ))
+      x=$(( 40 + col * CW2 )); y=$(( CY0 + 10 + row * CRH ))
+      [ "$k" = "$cur" ] && frame $(( y - 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 12 )) 5 || frame $(( y - 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 12 )) 1
+      [ -f "$DIR/ui/orient_$k.png" ] && image "$DIR/ui/orient_$k.png" $(( x + (CW2 - 170) / 2 )) $(( y + 14 ))
+      txt 26 $(( y + 196 )) $(( x + 20 )) "$d" b $(( CW2 - 40 )) 80
+      [ "$k" = "$cur" ] && txt 24 $(( y + 8 )) $(( x + 16 )) "$I_CHECK" s
+    else
+      col=$(( i / CPER )); row=$(( i % CPER ))
+      x=$(( 40 + col * CW2 )); y=$(( CY0 + row * CRH ))
+      if [ "$k" = "$cur" ]; then txt 30 $(( y + 16 )) $(( x + 6 )) "$I_DISC" s; st=b; else txt 30 $(( y + 16 )) $(( x + 6 )) "$I_RING" s; st=""; fi
+      txt 30 $(( y + 14 )) $(( x + 54 )) "$d" "$st" $(( CW2 - 70 )) 46
+      box $(( y + CRH - 2 )) $x $(( CW2 - 16 )) 1
+    fi
+    i=$((i + 1))
+  done
+  [ "$CH_KEY" = ORIENTATION ] && txt 22 $(( H - 44 )) 40 "Sau khi xoay, chạm ô giữa màn hình để giữ chiều mới (không chạm sẽ tự quay lại)." "" $(( W - 80 )) 40
+  refresh 1
+}
+choose_tap() { # x y
+  if [ $2 -le 80 ]; then VIEW=settings; return; fi
+  choose_geom
+  if [ "$CH_KEY" = ORIENTATION ]; then
+    col=$(( ($1 - 40) / CW2 )); row=$(( ($2 - CY0 - 10) / CRH ))
+    [ $col -ge 0 ] && [ $col -lt 2 ] && [ $row -ge 0 ] && [ $row -lt 2 ] || return
+    idx=$(( row * 2 + col + 1 ))
+  else
+    col=$(( ($1 - 40) / CW2 )); row=$(( ($2 - CY0) / CRH ))
+    [ $col -ge 0 ] && [ $col -lt $CCOLS ] && [ $row -ge 0 ] && [ $row -lt $CPER ] || return
+    idx=$(( col * CPER + row + 1 ))
+  fi
+  [ $idx -le $CH_N ] || return
+  nv=$(echo "$CH_OPTS" | tr ';' '\n' | sed -n "${idx}p" | cut -d'=' -f1)
+  old=$(setting_value "$CH_KEY")
+  [ "$nv" = "$old" ] && { VIEW=settings; return; }
+  save_setting "$CH_KEY" "$nv"; eval "$CH_KEY=\"$nv\""
+  VIEW=settings
+  if [ "$CH_KEY" = ORIENTATION ]; then
     PREV_ORIENT="$old"; reorient "$nv"
     VIEW=confirm; CONFIRM_DEADLINE=$(( $(date +%s) + 25 )); return
   fi
-  [ "$key" = PHOTO_MODE ] && [ "$nv" = fixed ] && [ -z "$PHOTO_FIXED" ] && { VIEW=pick; PICKPAGE=0; }
+  [ "$CH_KEY" = PHOTO_MODE ] && [ "$nv" = fixed ] && [ -z "$PHOTO_FIXED" ] && { VIEW=pick; PICKPAGE=0; }
 }
 
 # ---------- Trang Chọn ảnh ----------
@@ -721,7 +783,7 @@ confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
 draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
-    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;;
+    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
     *) render_main "$1" ;;
   esac
 }
@@ -763,6 +825,7 @@ handle_tap() {
   LAST_TOUCH=$(date +%s)
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
+    choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
     confirm) confirm_tap $x $y; return ;;
     settings) settings_tap $x $y; return ;;
