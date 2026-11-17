@@ -509,6 +509,13 @@ light_level() {
   [ -z "$l" ] && { echo ""; return; }
   l=$(( l + LADJ )); [ $l -lt 0 ] && l=0; [ $l -gt 24 ] && l=24; echo "$l"
 }
+# Nút ☀ trên thanh trên cùng: mỗi lần chạm lên một mức, quá mức cao nhất thì về tắt
+light_cycle() {
+  _cur=$(light_level); [ -n "$_cur" ] || return 0
+  _base="$LIGHT_DAY"; is_night && _base="$LIGHT_NIGHT"
+  _nx=0; for _v in 2 4 8 12 16 24; do [ $_v -gt $_cur ] && { _nx=$_v; break; }; done
+  LADJ=$(( _nx - _base )); LAST_ACT=$(date +%s); set_light
+}
 set_light() {
   n=0; is_night && n=1
   [ "$n" != "$NIGHT_WAS" ] && { LADJ=0; NIGHT_WAS=$n; }
@@ -538,7 +545,7 @@ pick_photo() { # $1 = thư mục con -> đường dẫn ảnh hiện tại
 # ---------- Bố cục ----------
 set_layout() {
   if [ $W -gt $H ]; then          # NGANG 1024x758
-    B_STATUS=670; B_LMIN=724; B_LPLUS=778; B_PAGE=838; B_GEAR=892; B_HOME=946
+    B_STATUS=630; B_LIGHT=706; B_PAGE=790; B_GEAR=866; B_HOME=942
     CLK_X=36; CLK_Y=80; CLK_W=460; CLK_H=200; CLK_PX=170; ANA_X=170; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=land; WX_X=40; WX_Y=316
@@ -547,7 +554,7 @@ set_layout() {
     EV_X=40; EV_Y=472; EV_W=460; EV_N=3; EV_STEP=90; EV_Y2=758
     PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270; GREET_X=742; GREET_W=243; ORN_TAG=ngang
   else                            # DỌC 758x1024
-    B_STATUS=402; B_LMIN=456; B_LPLUS=510; B_PAGE=570; B_GEAR=624; B_HOME=678
+    B_STATUS=364; B_LIGHT=440; B_PAGE=524; B_GEAR=600; B_HOME=676
     CLK_X=30; CLK_Y=82; CLK_W=416; CLK_H=196; CLK_PX=190; ANA_X=128; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=side; WX_X=460; WX_Y=88
@@ -644,20 +651,8 @@ draw_clock() { # vẽ vùng đồng hồ (không refresh)
 
 draw_header() {
   b=$(battery); BATT="$b"
-  txt 32 20 40 "$(date_text)" b $(( B_STATUS - 140 ))
-  if [ "$ONCE" != 1 ]; then
-    bat_top s
-    txt 30 20 $B_STATUS "$I_COFFEE" s
-    l=$(light_level)
-    if [ -n "$l" ]; then
-      txt 30 20 $B_LMIN "$I_BRIGHT" s; txt 26 22 $(( B_LMIN + 32 )) "–" b
-      txt 30 20 $B_LPLUS "$I_BRIGHT" s; txt 26 22 $(( B_LPLUS + 32 )) "+" b
-    fi
-    [ "$(page_list)" != main ] && txt 32 19 $B_PAGE "$I_PAGES" s
-    txt 34 18 $B_GEAR "$I_GEAR" s
-    [ -n "$UPD_AVAIL" ] && box 16 $(( B_GEAR + 30 )) 10 10        # chấm báo có bản mới
-    txt 34 18 $B_HOME "$I_HOME" s
-  fi
+  tx_fit bold 32 40 18 "$(date_text)" $(( B_STATUS - 140 ))
+  [ "$ONCE" != 1 ] && toolbar_icons s
   box 72 40 $(( W - 80 )) 2
 }
 
@@ -1326,14 +1321,13 @@ handle_tap() {
   set_layout; CAL_TH=46
   if layout_active; then lay_setup; [ "$LAYOUT" = lich ] && CAL_TH=120; fi
   if [ $y -le 80 ]; then
-    if [ $x -ge $(( B_HOME - 10 )) ]; then go_home "tap Home"
-    elif [ $x -ge $(( B_GEAR - 10 )) ]; then VIEW=settings
-    elif [ $x -ge $(( B_PAGE - 10 )) ]; then page_next 1
-    elif [ $x -ge $(( B_LPLUS - 8 )) ] && [ $x -lt $(( B_LPLUS + 60 )) ]; then LADJ=$((LADJ + 2)); set_light
-    elif [ $x -ge $(( B_LMIN - 8 )) ] && [ $x -lt $(( B_LMIN + 60 )) ]; then LADJ=$((LADJ - 2)); set_light
-    elif [ $x -ge $(( B_STATUS - 12 )) ] && [ $x -lt $(( B_STATUS + 50 )) ]; then VIEW=stpick
+    if [ $x -ge $(( B_HOME - 14 )) ]; then go_home "tap Home"
+    elif [ $x -ge $(( B_GEAR - 14 )) ]; then VIEW=settings
+    elif [ $x -ge $(( B_PAGE - 14 )) ]; then page_next 1
+    elif [ $x -ge $(( B_LIGHT - 14 )) ]; then light_cycle
+    elif [ $x -ge $(( B_STATUS - 24 )) ]; then VIEW=stpick
     fi
-    log "toolbar x=$x (status $B_STATUS-$((B_STATUS + 50)), đèn $B_LMIN) -> view=$VIEW lock=$LOCK_NOW ${W}x${H}"
+    log "toolbar x=$x (trạng thái $B_STATUS, đèn $B_LIGHT) -> view=$VIEW lock=$LOCK_NOW ${W}x${H}"
     return
   fi
   if [ $x -ge $CX ] && [ $x -le $CAL_X2 ] && [ $y -ge $CAL_Y ] && [ $y -le $CAL_Y2 ]; then

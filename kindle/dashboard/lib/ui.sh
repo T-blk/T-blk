@@ -124,6 +124,12 @@ tx() {
   _bt=$(( H - $4 - $2 * 14 / 10 )); [ $_bt -lt 0 ] && _bt=0
   "$FB" -q -b -O $(fbcolor_bg "${7:-k}") -t "regular=$_f,px=$2,top=$4,left=$_lx,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
 }
+# tx_fit KEY PX X Y "chữ" RỘNG [màu] — một dòng, tự thu nhỏ cỡ chữ cho vừa RỘNG (không xuống dòng)
+tx_fit() {
+  _fp=$2; [ "${6:-0}" -gt 40 ] || { tx "$1" "$2" "$3" "$4" "$5" l "${7:-k}"; return; }
+  twv "$1" "$_fp" "$5"; [ "${TWV:-0}" -gt "$6" ] && _fp=$(( _fp * $6 / TWV ))
+  tx "$1" "$_fp" "$3" "$4" "$5" l "${7:-k}" "$6"
+}
 # txcap KEY CAPH X Y "chữ" [căn] [màu] [rộng]  — Y = đỉnh chữ số/chữ hoa, cao CAPH
 txcap() {
   fmetric "$1"; _p=$(( $2 * FK / FC )); _t=$(( $4 - _p * (FA - FC) / FK ))

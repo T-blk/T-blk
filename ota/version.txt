@@ -1,8 +1,8 @@
-version=2026.11.17.26
-sha256=600d0f3202ee4976f1d52ce5c26b81b403e4c03e0f7ab50e1f42e2c52417a803
-size=4772174
-core_sha=602a54052cfe2e506b3890973d32236ae25c30009779a730d7b8402069eb174f
-core_size=342469
+version=2026.11.17.27
+sha256=117dfa393ceff3b411e57cd020a6631459708a2cdf4b2f4a744e2810170f98a3
+size=4772034
+core_sha=c48eb3b2e1b8db65c8797ea6011711b0c5fc97b50eec07a86110f652c28b2dbc
+core_size=342497
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Thêm % pin trên thanh trên cùng; lịch hiện giờ bắt đầu–kết thúc của sự kiện
+notes=Nút trên thanh trên cùng to hơn, dễ bấm; gộp đèn −/+ thành một nút ☀ bấm để đổi mức
