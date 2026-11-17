@@ -1,8 +1,8 @@
-version=2026.11.17.12
-sha256=51a552b158e6991ca6bed7dfa741cecc4641c70fbe9aa7eccc0170d24fb7dc9f
-size=4870767
-core_sha=892ac483c05230093da63ee524f5d49f8fcdaf93c1872db7d63e1cbe213fb9c5
-core_size=441934
+version=2026.11.17.13
+sha256=3451fcf6a3487330ac617bbf9df23acc654c500fa581f3d103bd0b42b50cc197
+size=4871367
+core_sha=5ccfd5ca077ffcf156d080742069cc8e736e0b93fd1f0f429ae4d390ca86e0ff
+core_size=442120
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa: chạm không ăn sau khi thử xoay màn hình (học góc đứng thẳng trước khi xoay, chỉ coi là đã xoay khi màn hình xoay thật)
+notes=Sửa dứt điểm chạm lệch: chỉ tin kích thước/góc xoay thật của màn hình (Kindle có thể báo 'ngang' khi màn hình vẫn dọc); xoay không được thì tự về dọc và báo

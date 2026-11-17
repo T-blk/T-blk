@@ -40,17 +40,21 @@ if [ "$1" != "--once" ]; then
     rm -f "$FW_FLAG"
     _lo=$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null); [ -n "$_lo" ] || _lo=U
     echo "$_lo" > /tmp/dash_lock_orig; _ln=$_lo
-    # Học góc xoay "đứng thẳng" NGAY LÚC NÀY (hướng vừa đọc từ Kindle là đúng), TRƯỚC khi ra lệnh xoay
-    _rota() { "$FB" -e 2>/dev/null | tr ';' '\n' | sed -n 's/^currentRota=//p' | head -1; }
-    _r0=$(_rota)
-    case "$_lo" in D) _o=2 ;; R) _o=1 ;; L) _o=3 ;; *) _o=0 ;; esac
-    case "$_r0" in [0-3]) echo $(( (_r0 - _o + 4) % 4 )) > "$DIR/.rota_up2" ;; esac
-    rm -f "$DIR/.rota_up"                                   # giá trị bản .11 có thể đã học sai
-    if [ "$_w" != "$_lo" ]; then
+    # Học góc xoay "đứng thẳng" từ màn hình THẬT: lúc mở dashboard, màn hình chính Kindle luôn dọc & đứng thẳng.
+    # (Không tin orientationLock: Kindle có thể báo "ngang" trong khi màn hình vẫn dọc.)
+    _geo() { "$FB" -e 2>/dev/null | tr ';' '\n' | sed -n "s/^$1=//p" | head -1; }
+    _r0=$(_geo currentRota); _vw=$(_geo viewWidth); _vh=$(_geo viewHeight)
+    rm -f "$DIR/.rota_up"
+    case "$_r0" in [0-3]) [ -n "$_vw" ] && [ -n "$_vh" ] && [ "$_vw" -lt "$_vh" ] && echo "$_r0" > "$DIR/.rota_up2" ;; esac
+    _ln=U
+    if [ "$_w" != U ] || [ "$_lo" != U ]; then
       lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null; sleep 3
-      _r1=$(_rota)
-      # chỉ coi là đã xoay khi màn hình xoay thật
-      if [ -z "$_r0" ] || [ "$_r1" != "$_r0" ]; then _ln=$_w; else _ln=$_lo; fi
+      if [ "$_w" != U ] && [ -n "$_r0" ] && [ "$(_geo currentRota)" = "$_r0" ]; then
+        # Kindle nhận lệnh nhưng màn hình không xoay -> về dọc, bỏ cài đặt xoay để lần sau không kẹt
+        lipc-set-prop com.lab126.winmgr orientationLock U 2>/dev/null
+        sed -i '/^ORIENTATION=/d' "$DIR/settings.conf" 2>/dev/null; ORIENTATION=doc
+        echo "Máy chưa xoay được màn hình khi đang ở màn hình chính Kindle — đã giữ chiều dọc." > /tmp/dash_notice
+      elif [ "$_w" != U ]; then _ln=$_w; fi
     fi
     fw_pause
     EARLY=fresh
@@ -281,6 +285,7 @@ rota_sync() {
   ROTA_UP=$(cat "$DIR/.rota_up2" 2>/dev/null)                # học ở phần khởi động (trước khi xoay)
   case "$ROTA_UP" in [0-3]) ;; *) TOUCH_LOCK=""; return ;; esac
   case $(( (CUR_ROTA - ROTA_UP + 4) % 4 )) in 0) TOUCH_LOCK=U ;; 2) TOUCH_LOCK=D ;; 1) TOUCH_LOCK=R ;; 3) TOUCH_LOCK=L ;; esac
+  LOCK_NOW=$TOUCH_LOCK                      # chiều đang dùng = chiều thật của màn hình
 }
 W=758; H=1024
 wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; sleep 1; i=$((i + 1)); done; return 1; }
@@ -304,8 +309,7 @@ reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
       if [ "$TOUCH_LOCK" = "$want" ] || { [ -z "$TOUCH_LOCK" ] && [ "$currentRota" != "$r0" ]; }; then LOCK_NOW="$want"
       else
         log "KHÔNG xoay được (rota $r0 -> $currentRota): giữ chiều cũ"
-        "$FB" -q -c -m -M -t "regular=$BOLD,px=32" "Máy chưa xoay được màn hình.
-Vẫn giữ chiều cũ." >/dev/null 2>&1; sleep 2
+        REORIENT_FAIL=1
       fi
     fi
     echo "$LOCK_NOW" > /tmp/dash_lock_now
@@ -921,7 +925,11 @@ choose_tap() { # x y
   fi
   VIEW=settings
   if [ "$CH_KEY" = ORIENTATION ]; then
-    PREV_ORIENT="$old"; reorient "$nv"
+    PREV_ORIENT="$old"; REORIENT_FAIL=0; reorient "$nv"
+    if [ "$REORIENT_FAIL" = 1 ]; then
+      save_setting ORIENTATION "$old"; ORIENTATION=$old
+      MSG_TEXT="Máy chưa xoay được màn hình sang chiều này. Đã giữ chiều cũ."; MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return
+    fi
     VIEW=confirm; CONFIRM_DEADLINE=$(( $(date +%s) + 25 )); return
   fi
   [ "$CH_KEY" = PHOTO_MODE ] && [ "$nv" = fixed ] && [ -z "$PHOTO_FIXED" ] && { VIEW=pick; PICKPAGE=0; }
@@ -1219,6 +1227,7 @@ fb_geom
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 remote_init
+if [ -s /tmp/dash_notice ]; then MSG_TEXT=$(cat /tmp/dash_notice); rm -f /tmp/dash_notice; MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; fi
 
 TAPPED=1
 LAST_ACT=$(date +%s)
