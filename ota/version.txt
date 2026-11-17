@@ -1,8 +1,8 @@
-version=2026.11.17.28
-sha256=d21a33d2f1683ae8464e4a6abb7268e29d87d56bd2fff7f93247b2bd9380123c
-size=4772595
-core_sha=c4d4aaabfd7fcb309c94bbdc3f8af30dcf118e720000b7438f4617b7ece792ad
-core_size=342912
+version=2026.11.17.29
+sha256=5e79ca4d79f0effa88b340ad2c257858ce63df2e3ab6d821be27ab3d57482c43
+size=4816105
+core_sha=bc4d2bca94be512d76fbf4fd6fcf03ff06846e8cef69375653e1aa8f64222f0b
+core_size=386252
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Cài đặt: hàng cao hơn, chữ to hơn, chia trang; danh sách chọn to hơn
+notes=Thêm Sudoku: 4 độ khó, ghi chú, xoá, hoàn tác, gợi ý, kiểm tra lỗi, đồng hồ, tự lưu ván, kỷ lục
