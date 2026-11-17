@@ -54,7 +54,7 @@ stop_dash() {
   pkill -f "$DIR/dash.sh" 2>/dev/null; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   sleep 1; rm -f /tmp/dash.pid
 }
-start_dash() { rm -f /tmp/dash_stop; nohup sh "$DIR/dash.sh" > "$DIR/dash.log" 2>&1 & }
+start_dash() { rm -f /tmp/dash_stop; DASH_NOLEARN=1 nohup sh "$DIR/dash.sh" > "$DIR/dash.log" 2>&1 & }
 healthy() { # chờ bản mới vẽ được màn hình chính
   i=0; while [ $i -lt ${HEALTH_TIMEOUT:-180} ]; do
     grep -qE "first draw ok|render main: done" "$DIR/dash.log" 2>/dev/null && return 0

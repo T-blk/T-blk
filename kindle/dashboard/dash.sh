@@ -30,6 +30,9 @@ EARLY=0
 if [ "$1" != "--once" ]; then
   . "$DIR/lib/fw.sh"
   case "$ORIENTATION" in nguoc) _w=D ;; ngangtrai) _w=L ;; ngangphai) _w=R ;; *) _w=U ;; esac
+  # Giao diện Kindle đang bị đóng băng (T) mà mất cờ -> vẫn là lần chạy trước của dashboard: tiếp quản,
+  # KHÔNG học lại góc "đứng thẳng" (màn hình lúc này là dashboard, có thể đang lộn ngược/ngang).
+  if ! fw_paused && _cp=$(cvm_pid) && [ "$(proc_state "$_cp")" = T ]; then echo "$_cp" > "$FW_FLAG"; fi
   if fw_paused && [ -n "$(proc_state "$(cat "$FW_FLAG")")" ]; then
     # tiếp quản lần chạy trước (vừa cập nhật / mở lại): giữ nguyên đóng băng, không lộ giao diện Kindle
     [ -s /tmp/dash_lock_orig ] || echo U > /tmp/dash_lock_orig
@@ -45,7 +48,11 @@ if [ "$1" != "--once" ]; then
     _geo() { "$FB" -e 2>/dev/null | tr ';' '\n' | sed -n "s/^$1=//p" | head -1; }
     _r0=$(_geo currentRota); _vw=$(_geo viewWidth); _vh=$(_geo viewHeight)
     rm -f "$DIR/.rota_up"
-    case "$_r0" in [0-3]) [ -n "$_vw" ] && [ -n "$_vh" ] && [ "$_vw" -lt "$_vh" ] && echo "$_r0" > "$DIR/.rota_up2" ;; esac
+    # Chỉ học khi chắc màn hình chính Kindle đứng thẳng: không học nếu Kindle báo đang khoá lộn ngược (D)
+    # hoặc dashboard vừa được bản cập nhật khởi động lại (DASH_NOLEARN) mà đã có giá trị cũ.
+    if [ ! -s "$DIR/.rota_up2" ] || { [ "$_lo" != D ] && [ -z "$DASH_NOLEARN" ]; }; then
+      case "$_r0" in [0-3]) [ -n "$_vw" ] && [ -n "$_vh" ] && [ "$_vw" -lt "$_vh" ] && echo "$_r0" > "$DIR/.rota_up2" ;; esac
+    fi
     _ln=U
     if [ "$_w" != U ] || [ "$_lo" != U ]; then
       [ "$_lo" = "$_w" ] && { lipc-set-prop com.lab126.winmgr orientationLock U 2>/dev/null; sleep 1; }   # "đá" để Kindle xoay thật
@@ -1338,6 +1345,11 @@ sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 remote_init
 # Bỏ viền hoa văn trang trí (một lần, theo yêu cầu): vẫn bật lại được trong Cài đặt > Giao diện
 [ -f "$DIR/.mig_noorn" ] || { save_setting ORNAMENT 0; ORNAMENT=0; touch "$DIR/.mig_noorn"; }
+# Tự kiểm tra: màn hình phải đúng chiều đã chọn (vd sau khi cập nhật, Kindle lỡ xoay lại) -> xoay lại cho khớp
+if [ "$PENDING_ORIENT" != 1 ] && [ -n "$TOUCH_LOCK" ] && [ "$TOUCH_LOCK" != "$(lock_for "$ORIENTATION")" ]; then
+  case "$ORIENTATION$TOUCH_LOCK" in ngang*L|ngang*R) ;; *)
+    log "khởi động: màn hình đang $TOUCH_LOCK, cài đặt $ORIENTATION -> xoay lại"; PENDING_ORIENT=1 ;; esac
+fi
 if [ "$PENDING_ORIENT" = 1 ]; then
   log "khởi động: chưa xoay được sang $ORIENTATION -> thử cách khác"
   reorient "$ORIENTATION"
