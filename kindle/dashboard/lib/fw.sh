@@ -22,13 +22,25 @@ fw_resume() {
     if [ -n "$(proc_state "$_p")" ]; then
       kill -CONT "$_p" 2>/dev/null
       lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
-      lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>/dev/null   # vẽ lại màn hình chính
+      fw_repaint
       return 0
     fi
   fi
   status framework 2>/dev/null | grep -q running || start framework 2>/dev/null || start lab126_gui 2>/dev/null
 }
 fw_paused() { [ -f "$FW_FLAG" ]; }
+
+# Bắt giao diện Kindle vẽ lại TOÀN màn hình: nếu đang ở màn hình chính thì lệnh "mở màn hình chính" bị bỏ qua
+# (chỉ vẽ lại vài vùng -> chỗ dashboard từng vẽ bị khuyết). Chuyển qua trang Cài đặt rồi về lại: mỗi lần
+# chuyển ứng dụng Kindle đều vẽ lại cả màn hình.
+fw_repaint() {
+  usleep 400000 2>/dev/null || sleep 1
+  if [ "${HOME_REPAINT:-1}" = 1 ]; then
+    lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.settings 2>/dev/null
+    sleep 2
+  fi
+  lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>/dev/null
+}
 
 # Cho giao diện Kindle chạy tạm vài giây để làm việc cần nó (vd đổi hướng màn hình), rồi đóng băng lại
 fw_thaw_do() { # lệnh...

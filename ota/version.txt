@@ -1,8 +1,8 @@
-version=2026.11.17.05
-sha256=2938a949fe794d8f78170948e706921f1a27c2a958f98fe9e7e16957275f7ee0
-size=4869432
-core_sha=a8dd0f24e218e57035c9e7efb092ff139a1d5d90fef9d48abb89c41a96977778
-core_size=439614
+version=2026.11.17.06
+sha256=769d43aa9f43c1db6d4d774a4ae9ddf13b4a9f30d3c579608e10a9882af853be
+size=4869581
+core_sha=45f117f5b8cbf3b32ed6b3e0839bb7bf7b55357d1938cff4a4c2fba8a1737bc4
+core_size=439743
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Chữ rõ hơn (độ tương phản cao: chữ phụ đậm hơn, nét mảnh đổi nét thường, chữ nhỏ to hơn); sửa lỗi màn hình Kindle bị khuyết sau khi cập nhật; API cho ứng dụng điện thoại (dò tìm, đọc/đổi mọi cài đặt)
+notes=Sửa: màn hình Kindle bị khuyết sau khi về Home (bắt vẽ lại toàn màn hình); chữ rõ hơn; API cho ứng dụng điện thoại
