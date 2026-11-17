@@ -389,7 +389,22 @@ fb_stride() { # chỉ dùng khi bộ nhớ màn hình xếp đúng theo chiều 
   FB_STRIDE=$(cat /sys/class/graphics/fb0/stride 2>/dev/null); _bpp=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
   case "$FB_STRIDE$_bpp" in ''|*[!0-9]*) FB_STRIDE=""; return ;; esac
   _row=$(( W * _bpp / 8 )); [ "$FB_STRIDE" -ge $_row ] && [ "$FB_STRIDE" -le $(( _row + 128 )) ] || FB_STRIDE=""
-  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
+  [ -n "$FB_STRIDE" ] && fb_probe
+  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE, đảo $FB_FLIP)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
+}
+fb_probe() { # tô ngầm 4 hàng trên cùng (không làm mới), xem bộ nhớ đổi ở đầu hay cuối -> FB_FLIP; rồi trả lại như cũ
+  _b=$(( FB_STRIDE * 4 )); _last=$(( H / 4 - 1 ))
+  dd if="$FBDEV" of=/tmp/dash_p0 bs=$_b count=1 2>/dev/null; dd if="$FBDEV" of=/tmp/dash_p1 bs=$_b skip=$_last count=1 2>/dev/null
+  _a0=$(cksum < /tmp/dash_p0); _a1=$(cksum < /tmp/dash_p1)
+  for _col in BLACK WHITE; do
+    "$FB" -q -b -B $_col -k "top=0,left=0,width=$W,height=4" >/dev/null 2>&1
+    _c0=$(dd if="$FBDEV" bs=$_b count=1 2>/dev/null | cksum); _c1=$(dd if="$FBDEV" bs=$_b skip=$_last count=1 2>/dev/null | cksum)
+    [ "$_c0" != "$_a0" ] || [ "$_c1" != "$_a1" ] && break
+  done
+  dd if=/tmp/dash_p0 of="$FBDEV" bs=$_b conv=notrunc 2>/dev/null; dd if=/tmp/dash_p1 of="$FBDEV" bs=$_b seek=$_last conv=notrunc 2>/dev/null
+  if [ "$_c0" != "$_a0" ]; then FB_FLIP=0
+  elif [ "$_c1" != "$_a1" ]; then FB_FLIP=1
+  else FB_STRIDE=""; log "quét vùng đổi: không dò được bộ nhớ màn hình -> tắt"; fi
 }
 fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
   _bs=$(( FB_STRIDE * BAND )); _nb=$(( (H + BAND - 1) / BAND )); _i=0
@@ -398,20 +413,25 @@ fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
 diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu không làm được (khi đó gọi draw bình thường)
   [ -n "$FB_STRIDE" ] && [ -r "$FBDEV" ] || return 1
   fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1
-  DIFF_DRAW=1; draw 0; DIFF_DRAW=0
+  DIFF_FULL=0; DIFF_IMGS=""; DIFF_DRAW=1; draw 0; DIFF_DRAW=0
+  if [ "$DIFF_FULL" = 1 ]; then refresh 0; log "quét: toàn màn hình (vừa vẽ lại ảnh nền)"; return 0; fi
   fb_sums > /tmp/dash_sums_b 2>/dev/null
   _runs=$(awk -v B=$BAND -v H=$H 'NR == FNR { a[FNR] = $0; next }
       { if (a[FNR] != $0) { if (s == "") s = FNR; e = FNR } else if (s != "") { printf "%d:%d ", (s-1)*B, (e-s+1)*B; s = "" } }
       END { if (s != "") printf "%d:%d ", (s-1)*B, (e-s+1)*B }' /tmp/dash_sums_a /tmp/dash_sums_b)
   _tot=0; for _r in $_runs; do _tot=$(( _tot + ${_r#*:} )); done
   if [ $_tot -ge $(( H * 7 / 10 )) ]; then refresh 0; log "quét: gần hết màn hình ($_tot hàng)"; return 0; fi
-  [ -z "$_runs" ] && { log "quét: không có gì đổi"; return 0; }
+  [ -z "$_runs$DIFF_IMGS" ] && { log "quét: không có gì đổi"; return 0; }
   for _r in $_runs; do
     _t=${_r%:*}; _h=${_r#*:}; [ $(( _t + _h )) -gt $H ] && _h=$(( H - _t ))
+    [ "$FB_FLIP" = 1 ] && _t=$(( H - _t - _h ))    # bộ nhớ xếp ngược chiều màn hình (để lộn ngược)
     _f=0; [ $_h -ge $(( H / 4 )) ] && _f=1      # vùng lớn (ảnh mới…) thì nháy riêng vùng đó cho khỏi bóng mờ
     refresh $_f "top=$_t,left=0,width=$W,height=$_h"
   done
-  log "quét vùng đổi: $_runs"
+  for _r in $DIFF_IMGS; do                   # vùng ảnh (eips) quét lại lần cuối cho đủ chữ/khung phủ lên
+    set -- $(echo "$_r" | tr ':' ' '); [ "$3" -gt 0 ] && [ "$4" -gt 0 ] && refresh 0 "top=$1,left=$2,width=$3,height=$4"
+  done
+  log "quét vùng đổi: $_runs${DIFF_IMGS:+ · ảnh:$DIFF_IMGS}"
   return 0
 }
 # Nháy sạch toàn màn hình định kỳ (chống bóng mờ tích luỹ): mặc định 1 lần lúc 3 giờ sáng
@@ -423,7 +443,26 @@ clean_due() {
   esac
 }
 
-image() { eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed: $1"; }
+image() {
+  # Ảnh nền toàn màn hình (ui/bg_*): eips luôn tự làm mới vùng ảnh -> khi vẽ ngầm sẽ lộ nền trống, che chữ.
+  # Nên lưu bản sao bộ nhớ màn hình ngay sau khi vẽ nền; lần sau chép lại bằng dd (không làm mới gì cả).
+  case "$2$3:$1" in 00:*/ui/bg_*)
+    if [ -n "$FB_STRIDE" ]; then
+      _k="$1|$CUR_ROTA|$W|$FB_STRIDE"
+      if [ "$DIFF_DRAW" = 1 ] && [ -s /tmp/dash_bg.raw ] && [ "$_k" = "$(cat /tmp/dash_bg.key 2>/dev/null)" ]; then
+        dd if=/tmp/dash_bg.raw of="$FBDEV" bs=$FB_STRIDE 2>/dev/null && return 0
+      fi
+      eips -g "$1" -x 0 -y 0 >/dev/null 2>&1 || log "eips image failed: $1"
+      [ "$DIFF_DRAW" = 1 ] && DIFF_FULL=1        # nền đã lộ ra -> phải quét lại toàn màn hình lần này
+      dd if="$FBDEV" of=/tmp/dash_bg.raw bs=$FB_STRIDE count=$H 2>/dev/null && echo "$_k" > /tmp/dash_bg.key
+      return 0
+    fi ;;
+  esac
+  eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed: $1"
+  # vẽ ngầm: eips đã tự làm mới vùng ảnh khi chữ phủ lên chưa vẽ -> ghi lại vùng để quét lại lúc cuối
+  [ "$DIFF_DRAW" = 1 ] && { set -- "$1" "$2" "$3" $(od -An -tu1 -j16 -N8 "$1" 2>/dev/null)
+    [ $# -ge 11 ] && DIFF_IMGS="$DIFF_IMGS $3:$2:$(( $5 * 65536 + $6 * 256 + $7 )):$(( $9 * 65536 + ${10} * 256 + ${11} ))"; }
+}
 
 WD_LONG="Chủ Nhật|Thứ Hai|Thứ Ba|Thứ Tư|Thứ Năm|Thứ Sáu|Thứ Bảy"
 WD_SHORT="CN|T2|T3|T4|T5|T6|T7"
