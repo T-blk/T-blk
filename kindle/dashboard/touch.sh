@@ -52,6 +52,17 @@ go_home() {
   exit 0
 }
 
+# Nút nguồn: bình thường = về Home; nếu vừa dùng để đánh thức máy khỏi ngủ sâu thì chỉ đánh thức dashboard
+power_key() {
+  w=$(cat /tmp/dash_woke 2>/dev/null || echo 0)
+  if [ -f /tmp/dash_sleeping ] || [ $(( $(date +%s) - w )) -lt 20 ]; then
+    log "power: đánh thức khỏi ngủ sâu"
+    kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
+    return 0
+  fi
+  go_home "power button"
+}
+
 # Toạ độ cảm ứng -> toạ độ màn hình (758x1024)
 map_xy() {
   x=$1; y=$2
@@ -88,7 +99,7 @@ watch_dev() {
          esac ;;
       1) case "$code" in
            330) [ "$val" = 0 ] && release=1; [ "$val" = 1 ] && down=1 ;;
-           116) [ "$val" = 1 ] && { [ "$mode" = probe ] && log "POWER pressed" || go_home "power button"; } ;;
+           116) [ "$val" = 1 ] && { [ "$mode" = probe ] && log "POWER pressed" || power_key; } ;;
          esac ;;
     esac
     if [ $release = 1 ] && [ $down = 1 ] && [ $X -ge 0 ] && [ $Y -ge 0 ]; then

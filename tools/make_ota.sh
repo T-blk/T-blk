@@ -18,7 +18,7 @@ cp kindle/dashboard/dash.conf kindle/dashboard/dash.conf.default
 
 STAGE=$(mktemp -d)
 mkdir -p "$STAGE/dashboard" "$STAGE/documents"
-for f in dash.sh touch.sh update.sh VERSION THIRD_PARTY.txt dash.conf.default todo.txt; do
+for f in dash.sh touch.sh update.sh remote_srv.sh VERSION THIRD_PARTY.txt dash.conf.default todo.txt; do
   cp "kindle/dashboard/$f" "$STAGE/dashboard/"
 done
 for d in lib fonts bin ornaments ui clockm ring; do cp -R "kindle/dashboard/$d" "$STAGE/dashboard/"; done

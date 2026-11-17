@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kindle Dashboard</title>
+<style>
+:root{--bg:#f4f4f2;--card:#fff;--ink:#111;--mid:#666;--line:#ddd;--acc:#111}
+@media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#1f1f1f;--ink:#f2f2f2;--mid:#9a9a9a;--line:#333;--acc:#f2f2f2}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,system-ui,sans-serif}
+main{max-width:560px;margin:auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px}.sub{color:var(--mid);font-size:14px;margin-bottom:14px}
+section{background:var(--card);border-radius:16px;padding:14px;margin:12px 0;border:1px solid var(--line)}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mid);margin:0 0 10px}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g2{grid-template-columns:repeat(2,1fr)}
+button{font:inherit;padding:12px 6px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button:active{transform:scale(.97)}button.on{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+.big{width:100%;margin-top:8px;background:var(--acc);color:var(--bg);border:0;font-weight:600}
+textarea{width:100%;min-height:80px;font:inherit;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:14px}td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}td:first-child{color:var(--mid);width:38%}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--acc);color:var(--bg);padding:10px 16px;border-radius:20px;opacity:0;transition:.3s}
+</style></head><body><main>
+<h1>Kindle Dashboard</h1><div class="sub" id="st">Đang kết nối…</div>
+
+<section><h2>Trạng thái</h2><div class="g" id="sts"></div>
+<button class="big" onclick="c('back')">Tôi đã quay lại</button></section>
+
+<section><h2>Lời nhắn lên Kindle</h2>
+<textarea id="m" placeholder="Ví dụ: Đi họp, 3 giờ về nhé!"></textarea>
+<button class="big" onclick="msg()">Gửi lời nhắn</button></section>
+
+<section><h2>Bố cục</h2><div class="g" id="lays"></div></section>
+<section><h2>Trang</h2><div class="g" id="pages"></div></section>
+
+<section><h2>Đèn nền</h2><div class="g">
+<button onclick="c('light','down')">Tối hơn</button><button onclick="c('light','up')">Sáng hơn</button><button onclick="c('refresh')">Vẽ lại</button></div></section>
+
+<section><h2>Chẩn đoán &amp; pin</h2><table id="dg"></table></section>
+<section><div class="g g2"><button onclick="if(confirm('Thoát dashboard, về màn hình Kindle?'))c('home')">Về Home Kindle</button><button onclick="load()">Làm mới</button></div></section>
+</main><div id="toast"></div>
+<script>
+const K="__KEY__";
+const S=[["taptrung","Tập trung"],["hop","Đang họp"],["goidien","Điện thoại"],["roidi","Ra ngoài"],["toilet","Toilet"],["cafe","Cà phê"],["antrua","Ăn trưa"],["ngutrua","Ngủ trưa"],["vengay","Tan làm"]];
+const L=[["codien","Cổ điển"],["toigian","Tối giản"],["thuysi","Thụy Sĩ"],["the","Thẻ"],["anh","Ảnh lớn"],["chu","Chữ"],["lich","Lịch"]];
+const P=[["main","Bảng chính"],["tin","Bảng tin"],["bloc","Lịch bloc"],["dem","Ban đêm"],["pomo","Pomodoro"],["news","Tin tức"]];
+function grid(id,arr,act){document.getElementById(id).innerHTML=arr.map(([v,t])=>`<button data-v="${v}" onclick="c('${act}','${v}')">${t}</button>`).join("")}
+grid("sts",S,"status");grid("lays",L,"layout");grid("pages",P,"page");
+function toast(t){const e=document.getElementById("toast");e.textContent=t;e.style.opacity=1;setTimeout(()=>e.style.opacity=0,1600)}
+async function c(a,v=""){try{const r=await fetch(`/c?k=${K}&a=${a}&v=${encodeURIComponent(v)}`);toast(r.ok?"Đã gửi tới Kindle":"Lỗi "+r.status);setTimeout(load,2500)}catch(e){toast("Không kết nối được Kindle")}}
+function msg(){const t=document.getElementById("m").value.trim();if(t){c("msg",t);document.getElementById("m").value=""}}
+function mark(id,v){document.querySelectorAll(`#${id} button`).forEach(b=>b.classList.toggle("on",b.dataset.v===v))}
+async function load(){try{const j=await(await fetch(`/api?k=${K}`)).json();
+ const n=(S.find(x=>x[0]===j.status)||[])[1];
+ document.getElementById("st").textContent=`Pin ${j.batt}% · ${n?"Trạng thái: "+n:"Đang ở "+(j.view==="main"?"màn hình chính":j.view)} · bản ${j.ver}`;
+ mark("sts",j.status);mark("lays",j.layout);mark("pages",j.page);
+ document.getElementById("dg").innerHTML=(j.diag||[]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join("")}catch(e){document.getElementById("st").textContent="Không kết nối được Kindle"}}
+load();setInterval(load,30000);
+</script></body></html>

@@ -16,6 +16,7 @@ load_conf() {
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
+  : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
   : "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
@@ -31,6 +32,10 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/layouts.sh"
 . "$DIR/lib/status.sh"
 . "$DIR/lib/fw.sh"
+. "$DIR/lib/diag.sh"
+. "$DIR/lib/schedule.sh"
+. "$DIR/lib/remote.sh"
+. "$DIR/lib/sleep.sh"
 modern_ok && mw_load
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
@@ -80,6 +85,7 @@ wifi_ready() { # vừa kết nối: đợi có địa chỉ mạng/DNS (tối đ
 # Tiết kiệm pin: tắt Wi-Fi khi không cần (bật lại tự động lúc tải thời tiết/lịch/tin, đọc báo, cập nhật)
 wifi_save() {
   [ "${WIFI_SAVE:-1}" = 1 ] || return 0
+  [ "$REMOTE" = 1 ] && return 0                 # đang nghe lệnh từ điện thoại: giữ Wi-Fi
   lipc-set-prop com.lab126.cmd wirelessEnable 0 2>/dev/null && log "wifi off (tiết kiệm pin)"
 }
 
@@ -168,7 +174,7 @@ update_data() {
     r=$(cat /tmp/dash_otaresult); rm -f /tmp/dash_otaresult; log "update check: $r"
     case "$r" in available*) r=${r#available }; UPD_AVAIL=${r%%|*}; UPD_NOTES=${r#*|} ;; esac
   fi
-  log "data: xong trong $(( $(date +%s) - t0 )) giây"
+  log "data: xong trong $(( $(date +%s) - t0 )) giây"; stat_wifi $(( $(date +%s) - t0 ))
   WIFI_USED=0; wifi_save
   DATA_CHANGED=1
 }
@@ -636,21 +642,32 @@ WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main
-settings_def() { if [ "$SET_GROUP" = look ]; then echo "$SETTINGS_LOOK"; else echo "$SETTINGS_DEF"; fi; }
+settings_def() { case "$SET_GROUP" in look) echo "$SETTINGS_LOOK" ;; power) echo "$SETTINGS_POWER" ;; auto) echo "$SETTINGS_AUTO" ;; *) echo "$SETTINGS_DEF" ;; esac; }
+group_title() { case "$SET_GROUP" in look) echo "Giao diện" ;; power) echo "Pin & đèn" ;; auto) echo "Tự động theo giờ" ;; esac; }
+SETTINGS_POWER='WIFI_SAVE|Tiết kiệm Wi-Fi|1=Bật (tắt Wi-Fi giữa các lần tải);0=Tắt (luôn bật)
+LIGHT_IDLE_MIN|Tắt đèn khi không chạm|0=Không;5=Sau 5 phút;15=Sau 15 phút;30=Sau 30 phút;60=Sau 1 giờ
+STATUS_DIM|Tắt đèn khi vắng mặt|1=Bật;0=Tắt
+LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
+LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
+NIGHT_INVERT|Đảo màu ban đêm|0=Tắt;1=Bật (thử)
+REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
+HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
+DEEP_SLEEP|Ngủ sâu ban đêm|0=Tắt;1=Bật (thử nghiệm)
+DEEP_SLEEP_MIN|Khi ngủ sâu, dậy mỗi|30=30 phút;60=1 giờ;120=2 giờ
+@SLEEPTEST|Thử ngủ sâu 1 phút…|'
+SETTINGS_AUTO='SCHEDULE|Tự đổi giao diện theo giờ|0=Tắt;lamviec=Ngày làm việc;hoctap=Học tập;giadinh=Ở nhà;tuychinh=Tuỳ chỉnh (lich-giao-dien.txt)
+AUTO_MEET|Tự bật "Đang họp" theo lịch|0=Tắt;1=Bật
+@SCHEDVIEW|Xem lịch đang dùng…|'
 SETTINGS_DEF='@LOOK|Giao diện…|
+@POWER|Pin & đèn…|
+@AUTO|Tự động theo giờ…|
+@REMOTE|Điều khiển từ điện thoại…|
+@DIAG|Chẩn đoán & pin…|
 DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm;pomo=Pomodoro;news=Tin tức
 NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
-WIFI_SAVE|Tiết kiệm Wi-Fi|1=Bật (tắt Wi-Fi giữa các lần tải);0=Tắt (luôn bật)
-STATUS_DIM|Tắt đèn khi vắng mặt|1=Bật;0=Tắt
-HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
-LIGHT_IDLE_MIN|Tắt đèn khi không chạm|0=Không;5=Sau 5 phút;15=Sau 15 phút;30=Sau 30 phút;60=Sau 1 giờ
-REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
-LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
-LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
-NIGHT_INVERT|Đảo màu ban đêm|0=Tắt;1=Bật (thử)
 DAYS_AHEAD|Sự kiện trong|7=7 ngày;14=14 ngày;30=30 ngày
 @PICK|Chọn ảnh từ danh sách…|
 @UPDATE|Cập nhật phần mềm|'
@@ -678,7 +695,7 @@ settings_geom() {
 render_settings() {
   settings_geom
   "$FB" -q -b -k >/dev/null 2>&1
-  if [ "$SET_GROUP" = look ]; then txt 34 18 40 "$I_LEFT" s; txt 34 18 84 "Giao diện" b
+  if [ "$SET_GROUP" != main ]; then txt 34 18 40 "$I_LEFT" s; txt 34 18 84 "$(group_title)" b
   else txt 34 18 40 "$I_GEAR" s; txt 34 18 92 "Cài đặt" b; fi
   txt 30 22 $(( W - 150 )) "$I_CHECK" s; txt 30 20 $(( W - 112 )) "Xong" b
   box 72 40 $(( W - 80 )) 2
@@ -692,6 +709,13 @@ render_settings() {
       ut="Bản $DASH_VER"; [ -n "$UPD_AVAIL" ] && ut="Có bản mới $UPD_AVAIL"
       txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 38
     elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    elif [ "$key" = "@REMOTE" ]; then
+      rt="Tắt"; [ "$REMOTE" = 1 ] && rt="Bật"
+      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$rt" b $(( vw - 50 )) 38; txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    elif [ "$key" = "@DIAG" ]; then
+      batt_rate; dt="Pin ${BATT:-$(battery)}%"; [ -n "$BR_LEFT" ] && dt="$dt · còn $BR_LEFT"
+      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$dt" b $(( vw - 50 )) 38; txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+    elif [ "${key#@}" != "$key" ] && [ "$key" != "@LOOK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
     elif [ "$key" = "@LOOK" ]; then
       txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display LAYOUT "$(echo "$SETTINGS_LOOK" | sed -n 1p | cut -d'|' -f3)")" b $(( vw - 50 )) 38
       txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
@@ -704,7 +728,7 @@ render_settings() {
 settings_tap() { # x y
   if [ $2 -le 80 ]; then
     if [ $1 -ge $(( W - 200 )) ]; then VIEW=main; SET_GROUP=main
-    elif [ "$SET_GROUP" = look ] && [ $1 -le 300 ]; then SET_GROUP=main; fi
+    elif [ "$SET_GROUP" != main ] && [ $1 -le 300 ]; then SET_GROUP=main; fi
     return
   fi
   settings_geom
@@ -713,7 +737,12 @@ settings_tap() { # x y
   idx=$(( col * SPER + row + 1 ))
   line=$(settings_def | sed -n "${idx}p"); [ -n "$line" ] || return
   key=${line%%|*}; opts=${line##*|}
-  if [ "$key" = "@LOOK" ]; then SET_GROUP=look; return; fi
+  case "$key" in
+    @LOOK) SET_GROUP=look; return ;; @POWER) SET_GROUP=power; return ;; @AUTO) SET_GROUP=auto; return ;;
+    @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;;
+    @SLEEPTEST) deep_test; return ;;
+    @SCHEDVIEW) MSG_TEXT=$( [ "$SCHEDULE" = 0 ] && echo "Chưa bật lịch tự đổi giao diện." || sched_preset "$SCHEDULE" | sed 's/layout/bố cục/;s/status/trạng thái/;s/back/thoát trạng thái/;s/page/trang/' | tr '\n' ';' | sed 's/;/ · /g'); MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return ;;
+  esac
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
   if [ "$key" = "@UPDATE" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang kiểm tra bản mới…" >/dev/null 2>&1
@@ -951,6 +980,7 @@ draw() {
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
     reader) render_reader ;; status) render_status ;; stpick) render_stpick ;;
+    diag) render_diag ;; remote) render_remote ;; msg) render_msg ;;
     *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
@@ -964,6 +994,7 @@ go_home() {
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   log_trim
+  remote_stop
   fw_resume
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   rm -f /tmp/dash.pid
@@ -991,11 +1022,12 @@ to_view() { # toạ độ cảm ứng (luôn theo chiều dọc gốc) -> toạ 
 
 handle_tap() {
   to_view "$1" "$2"; x=$VX; y=$VY
-  LAST_TOUCH=$(date +%s); LAST_ACT=$LAST_TOUCH; NOWE=$LAST_TOUCH
+  LAST_TOUCH=$(date +%s); LAST_ACT=$LAST_TOUCH; NOWE=$LAST_TOUCH; stat_tap
   log "tap ($x,$y) view=$VIEW"
   case "$VIEW" in
     reader) reader_tap $x $y; return ;;
     status) status_tap $x $y; return ;;
+    diag) diag_tap $x $y; return ;; remote) remote_tap $x $y; return ;; msg) msg_tap $x $y; return ;;
     stpick) stpick_tap $x $y; return ;;
     choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
@@ -1073,6 +1105,7 @@ process_taps() {
   mv "$TAPQ" "$TAPQ.work" 2>/dev/null || return 1
   while read -r tx ty sx1 sy1 sx2; do
     if [ "$tx" = S ]; then handle_swipe "$ty" "$sx1" "$sy1" "$sx2"
+    elif [ "$tx" = C ]; then handle_cmd "$ty" "$sx1"
     elif [ -n "$ty" ]; then handle_tap "$tx" "$ty"; fi
   done < "$TAPQ.work"
   rm -f "$TAPQ.work"
@@ -1112,6 +1145,7 @@ log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"
 fb_geom
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
+remote_init
 
 TAPPED=1
 LAST_ACT=$(date +%s)
@@ -1129,6 +1163,8 @@ while true; do
   [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
   idle_reset
   pomo_tick && TAPPED=1
+  batt_log
+  sched_tick && TAPPED=1
   [ $(( LOOPN % 60 )) = 0 ] && log_trim
   if [ "$WIFI_USED" = 1 ] && [ "$VIEW" != reader ] && [ "$VIEW" != update ]; then WIFI_USED=0; wifi_save; fi
   [ "$VIEW" = main ] && auto_page
@@ -1143,15 +1179,17 @@ while true; do
     LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
     [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0
-    draw $full; LAST_KEY="$key"
+    draw $full; LAST_KEY="$key"; stat_full
   else
-    update_clock
+    update_clock; stat_part
   fi
   TAPPED=0; DATA_CHANGED=0
   every=$REFRESH_MIN; is_night && every=$REFRESH_NIGHT_MIN
   s=$(date +%S); s=${s#0}; [ -z "$s" ] && s=0; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
   pc=$(pomo_sleep_cap); [ $pc -lt $secs ] && secs=$pc
   pomo_running && [ $secs -gt 60 ] && secs=60
+  remote_state
+  if deep_want; then deep_cycle; TAPPED=1; DATA_CHANGED=1; continue; fi   # ngủ sâu ban đêm (nếu bật)
   sleep $secs & SP=$!
   while :; do
     process_taps && { TAPPED=1; kill $SP 2>/dev/null; break; }
