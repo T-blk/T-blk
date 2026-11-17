@@ -1,8 +1,8 @@
-version=2026.11.17.25
-sha256=a6e179b9f8991b6e71c41d1be13ae507f242ebb56311ce40c60e5881682c611f
-size=4771710
-core_sha=155e90f671c0b5f0036e8ee82721722d2994b4a0209db56972c57a3989a97d21
-core_size=342174
+version=2026.11.17.26
+sha256=600d0f3202ee4976f1d52ce5c26b81b403e4c03e0f7ab50e1f42e2c52417a803
+size=4772174
+core_sha=602a54052cfe2e506b3890973d32236ae25c30009779a730d7b8402069eb174f
+core_size=342469
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Rà lại cơ chế quét vùng: đảo màu ban đêm, đồng bộ lại mỗi giờ (không nháy), ảnh nền theo phiên bản
+notes=Thêm % pin trên thanh trên cùng; lịch hiện giờ bắt đầu–kết thúc của sự kiện

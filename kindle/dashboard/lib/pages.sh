@@ -70,7 +70,7 @@ next_event() { # từ $EV -> NE_SUM NE_WHEN NE_LEFT (rỗng nếu không có)
   [ -n "$line" ] || return 0
   day=$(echo "$line" | cut -d'|' -f2); min=$(echo "$line" | cut -d'|' -f3); all=$(echo "$line" | cut -d'|' -f4)
   lab=$(echo "$line" | cut -d'|' -f5); NE_SUM=$(echo "$line" | cut -d'|' -f6-); [ -n "$lab" ] && NE_SUM="[$lab] $NE_SUM"
-  if [ "$all" = 1 ]; then NE_WHEN="cả ngày"; else NE_WHEN=$(printf '%02d:%02d' $((min / 60)) $((min % 60))); fi
+  if [ "$all" = 1 ]; then NE_WHEN="cả ngày"; else k=$(echo "$line" | cut -d'|' -f1); NE_WHEN=$(hm_range $min ${k#*:}); fi
   if [ "$all" = 1 ]; then diff=$(( (day - TD) * 1440 - NOWMIN )); else diff=$(( (day - TD) * 1440 + min - NOWMIN )); fi
   if [ $diff -ge 1440 ]; then NE_LEFT="còn $(( (diff + 720) / 1440 )) ngày"
   elif [ $diff -ge 60 ]; then NE_LEFT="còn $((diff / 60)) giờ $((diff % 60)) phút"
@@ -161,11 +161,11 @@ render_tin() {
   y=642
   awk -F'|' -v TD="$TD" -v NOW="$NOWMIN" '($2 > TD) || ($2 == TD && ($4 == 1 || $3 >= NOW - 60))' "$EV" | head -3 | while IFS='|' read -r key day min all label sum; do
     if [ "$day" = "$TD" ]; then w="Hôm nay"; elif [ "$day" = $((TD + 1)) ]; then w="Ngày mai"; else w="$(pick "$WD_SHORT" $(( (day + 4) % 7 ))) $(day_dm "$day")"; fi
-    if [ "$all" = 1 ]; then t="cả ngày"; else t=$(printf '%02d:%02d' $((min / 60)) $((min % 60))); fi
+    if [ "$all" = 1 ]; then t="cả ngày"; else t=$(hm_range $min ${key#*:}); fi
     [ -n "$label" ] && sum="[$label] $sum"
     txt 22 $(( y + 6 )) 40 "$w" b 140
-    txt 22 $(( y + 6 )) 182 "$t" "" 110
-    txt 32 $y 296 "$sum" "" $(( W - 336 )) 46
+    txt 22 $(( y + 6 )) 182 "$t" "" 150
+    txt 32 $y 340 "$sum" "" $(( W - 380 )) 46
     y=$(( y + 60 ))
   done
   NEWS_CARD=""; draw_news_card 826 40 678 186

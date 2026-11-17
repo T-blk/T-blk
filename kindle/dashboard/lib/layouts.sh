@@ -47,6 +47,7 @@ lay_toolbar() { # biểu tượng nhỏ màu xám ở góc phải trên
   [ "$ONCE" = 1 ] && return
   set_layout                                   # B_LMIN B_LPLUS B_PAGE B_GEAR B_HOME
   c=${1:-m}
+  bat_top $c
   tx sym 28 $B_STATUS 20 "$I_COFFEE" l $c
   if [ -n "$(light_level)" ]; then
     tx sym 26 $B_LMIN 22 "$I_BRIGHT" l $c; tx semi 22 $(( B_LMIN + 30 )) 22 "–" l $c
@@ -58,6 +59,15 @@ lay_toolbar() { # biểu tượng nhỏ màu xám ở góc phải trên
   tx sym 30 $B_HOME 18 "$I_HOME" l $c
 }
 
+# % pin trên thanh trên cùng, ngay trái nút trạng thái (không nhận chạm)
+bat_top() { # màu
+  [ -n "$BATT" ] || BATT=$(battery); [ -n "$BATT" ] || return 0
+  _bx=$(( B_STATUS - 16 ))
+  if [ "$BATT" -ge 80 ]; then _bi=$I_BAT4; elif [ "$BATT" -ge 55 ]; then _bi=$I_BAT3; elif [ "$BATT" -ge 30 ]; then _bi=$I_BAT2; elif [ "$BATT" -ge 10 ]; then _bi=$I_BAT1; else _bi=$I_BAT0; fi
+  _bt="$BATT%"; [ "$CHARGING" = 1 ] && _bt="$BATT%+"
+  tx semi 20 $_bx 24 "$_bt" r ${1:-m}
+  twv semi 20 "$_bt"; tx sym 22 $(( _bx - TWV - 34 )) 22 "$_bi" l ${1:-m}
+}
 slot() { echo "$1"; }                           # tiện đọc
 lunar_short() { nh=""; [ "$L_LEAP" = 1 ] && nh=" nhuận"; echo "$L_D/$L_M$nh"; }
 month_days() { # năm tháng -> số ngày
@@ -88,12 +98,10 @@ render_l_toigian() {
   hl 712 40 718
   ev_week 40 734 678 120 0
   q=$(quote_today); [ -n "$q" ] && tx light 24 40 930 "“$q”" l m 540
-  [ -n "$BATT" ] && tx reg 18 718 936 "Pin $BATT%" r s
 }
 
 # ---------------- 2. Lưới Thụy Sĩ ----------------
 render_l_thuysi() {
-  [ -n "$BATT" ] && tx reg 18 40 28 "Pin $BATT%" l s
   lay_toolbar
   dw=$(tw black $(px_for_cap black 104) "$D")
   txcap black 104 38 94 "$D"
@@ -150,7 +158,7 @@ cal_swiss() { # x y : lịch tháng kiểu lưới Thụy Sĩ
 render_l_the() {
   if [ -f "$DIR/ui/bg_the.png" ]; then image "$DIR/ui/bg_the.png" 0 0; else rect 0 0 $W $H GRAYE; fi
   TXBG=GRAYE
-  tx semi 28 44 22 "$(pick "$WD_LONG" "$(date +%w)"), $D tháng $M" l k 284
+  tx semi 28 44 22 "$(pick "$WD_LONG" "$(date +%w)"), $D tháng $M" l k 270
   lay_toolbar d
   TXBG=""
   w_clock $CB $CA
@@ -196,7 +204,6 @@ render_l_anh() {
   hl 830 40 718
   w_events $EB
   [ -n "$PHOTO_CAP" ] && tx light 18 40 972 "$PHOTO_CAP" l s 500
-  [ -n "$BATT" ] && tx reg 18 718 972 "Pin $BATT%" r s
 }
 
 # ---------------- 5. Chữ ----------------

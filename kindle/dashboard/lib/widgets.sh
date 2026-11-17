@@ -81,6 +81,9 @@ ev_upcoming() {
       if ($2 > TD || ($2 == TD && ($4 == 1 || $3 + dur > NOW))) { s = $6; for (i = 7; i <= NF; i++) s = s "|" $i; print $2 "|" $3 "|" $4 "|" dur "|" $5 "|" s } }' "$EV" > /tmp/dash_up2.txt
 }
 hm() { printf '%02d:%02d' $(( $1 / 60 )) $(( $1 % 60 )); }
+hm_range() { # phút_bắt_đầu thời_lượng -> "19:00–23:00" (không có thời lượng -> "19:00")
+  if [ "${2:-0}" -gt 0 ] 2>/dev/null; then echo "$(hm $1)–$(hm $(( ($1 + $2) % 1440 )))"; else hm $1; fi
+}
 day_word() { # DAY -> Hôm nay / Ngày mai / T4 18/11
   if [ "$1" = "$TD" ]; then echo "Hôm nay"; elif [ "$1" = $(( TD + 1 )) ]; then echo "Ngày mai"
   else echo "$(pick "$WD_SHORT" $(( ($1 + 4) % 7 ))) $(day_dm "$1")"; fi
@@ -99,7 +102,7 @@ ev_split() { # "DAY|MIN|..." -> E_DAY E_MIN E_ALL E_DUR E_LAB E_SUM   (không g�
   [ -n "$E_LAB" ] && E_SUM="[$E_LAB] $E_SUM"
 }
 ev_when() { # dùng E_* -> "Hôm nay · 19:00"
-  if [ "$E_ALL" = 1 ]; then echo "$(day_word $E_DAY) · cả ngày"; else echo "$(day_word $E_DAY) · $(hm $E_MIN)"; fi
+  if [ "$E_ALL" = 1 ]; then echo "$(day_word $E_DAY) · cả ngày"; else echo "$(day_word $E_DAY) · $(hm_range $E_MIN $E_DUR)"; fi
 }
 ev_none() { # X Y R
   if [ -n "$ICS_URL" ]; then tx light 28 $1 $2 "Không có lịch hẹn sắp tới" l m $3
@@ -138,10 +141,10 @@ ev_gon() { # gọn: giờ | tiêu đề | ngày (phải)
   X=$1; Y0=$2; BW=$3; BH=$4; fs=24; step=$(( fs * 15 / 10 ))
   ev_pages $(( BH / step ))
   [ $EVTOTAL = 0 ] && { ev_none $X $Y0 $BW; return; }
-  tcol=$(( $(tw semi $fs "00:00") + 18 )); y=$Y0; i=$EVSTART
+  tcol=$(( $(tw semi $fs "00:00–00:00") + 18 )); y=$Y0; i=$EVSTART
   while [ $i -lt $(( EVSTART + EVN )) ]; do
     l=$(ev_line $i); [ -n "$l" ] || break; ev_split "$l"
-    if [ "$E_ALL" = 1 ]; then tx semi $(( fs - 4 )) $X $(( y + 3 )) "cả ngày" l k; else tx semi $fs $X $y "$(hm $E_MIN)"; fi
+    if [ "$E_ALL" = 1 ]; then tx semi $(( fs - 4 )) $X $(( y + 3 )) "cả ngày" l k; else tx semi $fs $X $y "$(hm_range $E_MIN $E_DUR)"; fi
     dw=$(day_word $E_DAY); dwid=$(tw reg $(( fs - 4 )) "$dw")
     tx reg $fs $(( X + tcol )) $y "$E_SUM" l k $(( BW - tcol - dwid - 20 ))
     tx reg $(( fs - 4 )) $(( X + BW )) $(( y + 3 )) "$dw" r s
@@ -181,7 +184,7 @@ ev_now() { # Bây giờ & tiếp theo
       sub=$(left_text $(( E_MIN + E_DUR - NOWMIN )))
     else ev_split "$NEXTL"; lab="TIẾP THEO"
       if [ "$E_ALL" = 1 ]; then big="$(day_word $E_DAY)"; sub="cả ngày"
-      else big=$(hm $E_MIN); [ "$E_DAY" != "$TD" ] && sub="$(day_word $E_DAY)" || sub=$(left_text $(ev_mins_to)); fi
+      else big=$(hm_range $E_MIN $E_DUR); [ "$E_DAY" != "$TD" ] && sub="$(day_word $E_DAY)" || sub=$(left_text $(ev_mins_to)); fi
     fi
     bf=${NOW_BIGF:-semi}
     tx $lf $lp $X $Y0 "$lab" l $lc
@@ -213,7 +216,7 @@ ev_now() { # Bây giờ & tiếp theo
   tx light $fs $X $(( Y0 + 28 )) "$E_SUM" l k $BW
   if [ "$lab" = "ĐANG DIỄN RA" ]; then sub="$(hm $E_MIN) – $(hm $(( (E_MIN + E_DUR) % 1440 ))) · $(left_text $(( E_MIN + E_DUR - NOWMIN )))"
   elif [ "$E_ALL" = 1 ]; then sub="$(day_word $E_DAY) · cả ngày"
-  elif [ "$E_DAY" = "$TD" ]; then sub="$(hm $E_MIN) · $(left_text $(ev_mins_to))"
+  elif [ "$E_DAY" = "$TD" ]; then sub="$(hm_range $E_MIN $E_DUR) · $(left_text $(ev_mins_to))"
   else sub="$(ev_when)"; fi
   tx reg 24 $X $(( Y0 + 28 + fs * 125 / 100 )) "$sub" l m $BW
   # dòng "sau đó" nếu còn chỗ
@@ -320,6 +323,8 @@ ev_sentence() { # câu văn: "Tối nay lúc 7 giờ, bạn có Night shift."
   elif [ -n "$NEXTL" ]; then ev_split "$NEXTL"
     hr=$(( E_MIN / 60 )); mi=$(( E_MIN % 60 )); h12=$(( hr % 12 )); [ $h12 = 0 ] && h12=12
     at="lúc $h12 giờ"; [ $mi -gt 0 ] && at="lúc $h12 giờ $mi"
+    if [ "${E_DUR:-0}" -gt 0 ]; then em=$(( (E_MIN + E_DUR) % 1440 )); eh=$(( em / 60 % 12 )); [ $eh = 0 ] && eh=12
+      at="từ $h12 giờ"; [ $mi -gt 0 ] && at="từ $h12 giờ $mi"; at="$at đến $eh giờ"; [ $(( em % 60 )) -gt 0 ] && at="$at $(( em % 60 ))"; fi
     if [ $hr -lt 11 ]; then b="sáng"; elif [ $hr -lt 13 ]; then b="trưa"; elif [ $hr -lt 18 ]; then b="chiều"; else b="tối"; fi
     case "$b" in sáng) bn="Sáng" ;; trưa) bn="Trưa" ;; chiều) bn="Chiều" ;; *) bn="Tối" ;; esac
     if [ "$E_DAY" = "$TD" ]; then pre="$bn nay"

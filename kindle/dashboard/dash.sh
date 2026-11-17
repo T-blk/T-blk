@@ -538,7 +538,7 @@ pick_photo() { # $1 = thư mục con -> đường dẫn ảnh hiện tại
 # ---------- Bố cục ----------
 set_layout() {
   if [ $W -gt $H ]; then          # NGANG 1024x758
-    B_STATUS=610; B_LMIN=676; B_LPLUS=740; B_PAGE=812; B_GEAR=878; B_HOME=946
+    B_STATUS=670; B_LMIN=724; B_LPLUS=778; B_PAGE=838; B_GEAR=892; B_HOME=946
     CLK_X=36; CLK_Y=80; CLK_W=460; CLK_H=200; CLK_PX=170; ANA_X=170; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=land; WX_X=40; WX_Y=316
@@ -547,7 +547,7 @@ set_layout() {
     EV_X=40; EV_Y=472; EV_W=460; EV_N=3; EV_STEP=90; EV_Y2=758
     PH_DIR=land; PH_X=530; PH_Y=480; PH_W=454; PH_H=270; GREET_X=742; GREET_W=243; ORN_TAG=ngang
   else                            # DỌC 758x1024
-    B_STATUS=338; B_LMIN=404; B_LPLUS=468; B_PAGE=544; B_GEAR=610; B_HOME=678
+    B_STATUS=402; B_LMIN=456; B_LPLUS=510; B_PAGE=570; B_GEAR=624; B_HOME=678
     CLK_X=30; CLK_Y=82; CLK_W=416; CLK_H=196; CLK_PX=190; ANA_X=128; ANA_Y=82
     LUN_Y=280; LUN_X=40
     WXL=side; WX_X=460; WX_Y=88
@@ -644,8 +644,9 @@ draw_clock() { # vẽ vùng đồng hồ (không refresh)
 
 draw_header() {
   b=$(battery); BATT="$b"
-  txt 32 20 40 "$(date_text)" b $(( B_STATUS - 56 ))
+  txt 32 20 40 "$(date_text)" b $(( B_STATUS - 140 ))
   if [ "$ONCE" != 1 ]; then
+    bat_top s
     txt 30 20 $B_STATUS "$I_COFFEE" s
     l=$(light_level)
     if [ -n "$l" ]; then
@@ -661,7 +662,7 @@ draw_header() {
 }
 
 draw_weather() {
-  pin=""; [ -n "$BATT" ] && pin="Pin $BATT%"
+  pin=""                                     # % pin đã hiện trên thanh trên cùng
   if ! parse_weather; then
     txt 26 $WX_Y $WX_X "$CITY" "" 260; txt 28 $(( WX_Y + 40 )) $WX_X "Chưa có thời tiết" "" 260
     [ -n "$pin" ] && txt 22 $(( WX_Y + 80 )) $WX_X "$pin"
@@ -719,7 +720,7 @@ screen_sig() {
   _p=""; [ "$PHOTO_MODE" != fixed ] && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
   _q=""; [ "$EV_SOON" = 1 ] && _q=$(( mnow / 15 ))
   _n=0; is_night && _n=1
-  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$BATT_B|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
+  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$BATT_B$CHARGING|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
 }
 
 # Sự kiện: chỉ đọc lại file .ics khi lịch vừa tải về hoặc khoảng ngày đổi (đỡ tốn CPU mỗi lần vẽ)
@@ -777,7 +778,7 @@ draw_events() {
     sed -n "$(( EVPAGE * EV_N + 1 )),$(( EVPAGE * EV_N + EV_N ))p" /tmp/dash_up.txt | while IFS='|' read -r key day min all label sum; do
       wd=$(pick "$WD_SHORT" $(( (day + 4) % 7 )))
       if [ "$day" = "$TD" ]; then when="Hôm nay"; elif [ "$day" = $((TD + 1)) ]; then when="Ngày mai"; else when="$wd $(day_dm "$day")"; fi
-      if [ "$all" = 1 ]; then when="$when · cả ngày"; else when="$when · $(printf '%02d:%02d' $((min / 60)) $((min % 60)))"; fi
+      if [ "$all" = 1 ]; then when="$when · cả ngày"; else when="$when · $(hm_range $min ${key#*:})"; fi
       [ -n "$label" ] && when="[$label] $when"
       txt 24 "$y" $EV_X "$when" b $(( lw - 50 )) 34
       txt 34 $(( y + 30 )) $EV_X "$sum" "" "$lw" 48
@@ -1437,7 +1438,7 @@ LAST_ACT=$(date +%s)
 while true; do
   set -- $(date '+%Y%m%d%H %M %S %s'); NOW_YMDH=$1; mnow=${2#0}; NOW_SEC=${3#0}; NOWE=$4
   LOOPN=$(( ${LOOPN:-0} + 1 ))
-  b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; [ -n "$b" ] && BATT_B=$(( b / 10 )); fi   # pin: mỗi 5 vòng
+  b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; [ -n "$b" ] && BATT_B=$b; fi   # pin: mỗi 5 vòng
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
