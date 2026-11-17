@@ -308,7 +308,7 @@ def main():
     os.makedirs(sd, exist_ok=True)
     for i, (k, fn) in enumerate(ARTS.items()):
         cv = Canvas(560, 420)
-        frame_florals(cv, seed=i * 3)
+        cv.line([(70, 406), (490, 406)], w=2.5, c=SOFT)      # chỉ một đường nền mảnh, không hoa lá
         fn(cv)
         im = cv.done().quantize(16).convert("L")
         im.save(os.path.join(sd, f"{k}.png"), optimize=True)

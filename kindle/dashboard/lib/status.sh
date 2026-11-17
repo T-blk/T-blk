@@ -84,7 +84,8 @@ render_stpick() {
   echo "$STATUS_LIST" | while IFS='|' read -r id nm; do
     x=$(( 20 + (i % 3) * SPW )); y=$(( SPY0 + (i / 3) * SPH ))
     frame $(( y + 6 )) $(( x + 6 )) $(( SPW - 12 )) $(( SPH - 12 )) 1
-    th="$DIR/ui/status/${id}_s.png"; ts=$(( SPH - 70 )); [ $ts -gt 150 ] && ts=150
+    th=$(ls "$DIR/photos/status/thumb/${id}_"*.png 2>/dev/null | head -1)   # ảnh riêng của bạn (nếu có)
+    [ -n "$th" ] || th="$DIR/ui/status/${id}_s.png"
     image "$th" $(( x + (SPW - 200) / 2 )) $(( y + 14 + (SPH - 70 - 150) / 2 ))
     tx semi 22 $(( x + SPW / 2 )) $(( y + SPH - 50 )) "$nm" c k $(( SPW - 24 ))
     i=$((i + 1))

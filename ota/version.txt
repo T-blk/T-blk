@@ -1,8 +1,8 @@
-version=2026.11.17.15
-sha256=68da44b4e415dd81e3a13007f47ae16198a46c6f5404b61ce8c2e29d84749a32
-size=4874225
-core_sha=7372edfde4f1a96b63dd06895017b8fa6d928ddd712ef042a4cf3ba5e4f42bd7
-core_size=443964
+version=2026.11.17.16
+sha256=ea162cf6dfeea0ee0083f21efea261899645c20d8249af157d61e03e51e2f649
+size=4767119
+core_sha=83291af6086de8d5fc9186f978cf0d4256d3e6c055245d5f834eaa7dab043901
+core_size=336833
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Xoay ngang được (dashboard tự xoay, màn hình xác nhận tự dò chiều chạm); chỉ vẽ lại khi nội dung đổi — bớt quét màn hình, đỡ pin; màn hình phụ không còn nháy mỗi phút
+notes=Lưới chọn trạng thái hiện ảnh riêng của bạn; hình minh hoạ có sẵn gọn hơn (bỏ cành hoa)

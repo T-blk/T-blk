@@ -184,6 +184,9 @@ def convert_status(srcdirs, dst, previews=None):
         for d, box in ((os.path.join(dst, "status"), (758, 560)), (os.path.join(dst, "status", "land"), (580, 650))):
             os.makedirs(d, exist_ok=True)
             save_eink(ImageOps.pad(img, box, Image.LANCZOS, color=255), os.path.join(d, name))
+        td = os.path.join(dst, "status", "thumb")             # ảnh nhỏ cho lưới chọn trạng thái
+        os.makedirs(td, exist_ok=True)
+        save_eink(ImageOps.pad(img, (200, 150), Image.LANCZOS, color=255), os.path.join(td, name))
         if previews is not None:
             previews.append(("status", sid, os.path.join(dst, "status", name), os.path.basename(src)))
         n += 1
