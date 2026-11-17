@@ -38,6 +38,7 @@ handle_cmd() { # hành_động tham_số
     light) [ "$2" = up ] && LADJ=$((LADJ + 2)); [ "$2" = down ] && LADJ=$((LADJ - 2)); LIGHT_NOW=""; set_light ;;
     msg) MSG_TEXT=$(cat /tmp/dash_msg 2>/dev/null); MSG_TIME=$(date +%H:%M); [ -n "$MSG_TEXT" ] && { MSG_PREV=$VIEW; VIEW=msg; } ;;
     refresh) LAST_KEY="" ;;
+    photodone) log "nhận ảnh qua Wi-Fi: xong"; RECV_DONE=1; LAST_KEY=""; [ "$VIEW" = recv ] && VIEW=recv ;;
     set) setting_apply "$2" "$3" ;;
     home) go_home "điện thoại" ;;
   esac
@@ -83,6 +84,35 @@ render_msg() {
   refresh 1
 }
 msg_tap() { VIEW=main; [ "$MSG_PREV" = status ] && [ -n "$ST_ID" ] && VIEW=status; }
+
+# ---------- Nhận ảnh từ Mac qua Wi-Fi (không cần cắm cáp) ----------
+# Bật máy chủ tạm thời (15 phút hoặc tới khi thoát màn hình này), Wi-Fi giữ mở trong lúc đó.
+recv_start() {
+  [ -n "$REMOTE_KEY" ] || { REMOTE_KEY=$(( ($(date +%s) + $$) % 9000 + 1000 )); save_setting REMOTE_KEY "$REMOTE_KEY"; }
+  RECV_ON=1; RECV_DONE=0; RECV_UNTIL=$(( $(date +%s) + 900 ))
+  REMOTE_SAVE=$REMOTE; REMOTE=1; remote_start
+}
+recv_stop() {
+  RECV_ON=0; REMOTE=${REMOTE_SAVE:-0}
+  [ "$REMOTE" = 1 ] || remote_stop
+  WIFI_USED=1
+}
+recv_check() { [ "$RECV_ON" = 1 ] && [ $(date +%s) -ge $RECV_UNTIL ] && { recv_stop; [ "$VIEW" = recv ] && VIEW=settings; return 0; }; return 1; }
+render_recv() {
+  "$FB" -q -b -k >/dev/null 2>&1
+  txt 34 18 40 "$I_LEFT" s; txt 34 18 84 "Nhận ảnh từ Mac qua Wi-Fi" b
+  box 72 40 $(( W - 80 )) 2
+  ip=$(wifi_ip)
+  if [ "$RECV_DONE" = 1 ]; then txt 34 110 40 "Đã nhận ảnh xong!" b; txt 24 160 40 "Chạm mũi tên trái để quay lại." "" $(( W - 80 ))
+  elif [ -n "$ip" ]; then
+    txt 26 110 40 "Kindle đang chờ ảnh. Trên Mac (cùng Wi-Fi), chạy lệnh gửi ảnh với:" "" $(( W - 80 )) 80
+    tx reg 24 40 200 "Địa chỉ Kindle:" l m; tx semi 48 40 236 "$ip" l k
+    tx reg 24 40 320 "Mã PIN:" l m; tx bold 64 40 352 "$REMOTE_KEY" l k
+    txt 22 470 40 "Màn hình này tự tắt sau 15 phút. Không cần cắm cáp." "" $(( W - 80 )) 70
+  else txt 26 120 40 "Đang bật Wi-Fi… mở lại màn hình này sau vài giây." "" $(( W - 80 )) 80; fi
+  refresh 1
+}
+recv_tap() { [ $2 -le 80 ] && { recv_stop; VIEW=settings; }; }
 
 render_remote() {
   "$FB" -q -b -k >/dev/null 2>&1

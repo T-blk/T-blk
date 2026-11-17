@@ -32,10 +32,32 @@ reply() { # mã kiểu nội_dung   (có Content-Length để trình duyệt t�
 
 handle() {
   read -r method path proto || return
-  while read -r h; do h=$(printf '%s' "$h" | tr -d '\r'); [ -z "$h" ] && break; done
+  clen=0
+  while read -r h; do h=$(printf '%s' "$h" | tr -d '\r'); [ -z "$h" ] && break
+    case "$h" in [Cc]ontent-[Ll]ength:*) clen=$(echo "${h#*:}" | tr -dc '0-9') ;; esac
+  done
   route=${path%%\?*}; q=""; case "$path" in *\?*) q=${path#*\?} ;; esac
   k=$(qget "$q" k)
   case "$route" in
+    /upload)   # nhận 1 file ảnh từ Mac qua Wi-Fi: POST /upload?k=PIN&path=status/cafe_01.png (thân = dữ liệu PNG)
+      [ "$k" = "$KEY" ] || { [ "$clen" -gt 0 ] && head -c "$clen" > /dev/null; reply "403 Forbidden" application/json '{"ok":false}'; return; }
+      p=$(qget "$q" path)
+      case "$p" in ""|*..*|/*|*[!A-Za-z0-9_./-]*) head -c "$clen" > /dev/null; reply "400 Bad Request" application/json '{"ok":false,"error":"path"}'; return ;; esac
+      case "$p" in *.png|*.txt) ;; *) head -c "$clen" > /dev/null; reply "400 Bad Request" application/json '{"ok":false,"error":"type"}'; return ;; esac
+      [ "$clen" -gt 0 ] && [ "$clen" -le 3000000 ] || { reply "400 Bad Request" application/json '{"ok":false,"error":"size"}'; return; }
+      mkdir -p "$DIR/photos/$(dirname "$p")"
+      head -c "$clen" > "$DIR/photos/$p.part" 2>/dev/null || dd bs=1 count="$clen" of="$DIR/photos/$p.part" 2>/dev/null
+      if [ "$(wc -c < "$DIR/photos/$p.part" | tr -d ' ')" = "$clen" ]; then mv "$DIR/photos/$p.part" "$DIR/photos/$p"; reply "200 OK" application/json '{"ok":true}'
+      else rm -f "$DIR/photos/$p.part"; reply "500 Error" application/json '{"ok":false,"error":"short"}'; fi ;;
+    /photoclear)   # xoá ảnh cũ trước khi gửi bộ mới: chỉ trong thư mục photos
+      [ "$k" = "$KEY" ] || { reply "403 Forbidden" application/json '{"ok":false}'; return; }
+      sub=$(qget "$q" dir); case "$sub" in status|all) ;; *) reply "400 Bad Request" application/json '{"ok":false}'; return ;; esac
+      if [ "$sub" = all ]; then rm -rf "$DIR/photos"/*; else rm -rf "$DIR/photos/status"; fi
+      reply "200 OK" application/json '{"ok":true}' ;;
+    /photodone)
+      [ "$k" = "$KEY" ] || { reply "403 Forbidden" application/json '{"ok":false}'; return; }
+      echo "C photodone" >> /tmp/dash_taps; kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
+      reply "200 OK" application/json '{"ok":true}' ;;
     /hello)   # dò tìm trong mạng (không cần PIN): ứng dụng quét dải IP và gọi /hello
       reply "200 OK" application/json "{\"app\":\"kindle-dashboard\",\"api\":1,\"ver\":\"$(cat "$DIR/VERSION" 2>/dev/null)\",\"port\":$PORT,\"auth\":\"pin\"}" ;;
     /settings)

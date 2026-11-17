@@ -1,8 +1,8 @@
-version=2026.11.17.16
-sha256=ea162cf6dfeea0ee0083f21efea261899645c20d8249af157d61e03e51e2f649
-size=4767119
-core_sha=83291af6086de8d5fc9186f978cf0d4256d3e6c055245d5f834eaa7dab043901
-core_size=336833
+version=2026.11.17.17
+sha256=c002f5d9fd485981ac1a12f265cac06bd5fe30550f86b71581eb8ba72320ace2
+size=4768495
+core_sha=6586910a245a8672aa8e793de7c4495d8b10d5b793be5cf5f84a6ee5a9017498
+core_size=337800
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Lưới chọn trạng thái hiện ảnh riêng của bạn; hình minh hoạ có sẵn gọn hơn (bỏ cành hoa)
+notes=Nhận ảnh từ Mac qua Wi-Fi, không cần cắm cáp (Cài đặt > Nhận ảnh từ Mac qua Wi-Fi)

@@ -801,6 +801,7 @@ ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngư�
 PHOTO_MODE|Ảnh|auto=Tự đổi;fixed=Cố định
 PHOTO_MIN|Đổi ảnh mỗi|1=1 phút;5=5 phút;15=15 phút;30=30 phút;60=1 giờ;180=3 giờ;1440=1 ngày
 DAYS_AHEAD|Sự kiện trong|7=7 ngày;14=14 ngày;30=30 ngày
+@RECV|Nhận ảnh từ Mac qua Wi-Fi…|
 @PICK|Chọn ảnh từ danh sách…|
 @UPDATE|Cập nhật phần mềm|'
 
@@ -872,6 +873,7 @@ settings_tap() { # x y
   case "$key" in
     @LOOK) SET_GROUP=look; return ;; @POWER) SET_GROUP=power; return ;; @AUTO) SET_GROUP=auto; return ;;
     @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;;
+    @RECV) recv_start; VIEW=recv; return ;;
     @SLEEPTEST) deep_test; return ;;
     @SCHEDVIEW) MSG_TEXT=$( [ "$SCHEDULE" = 0 ] && echo "Chưa bật lịch tự đổi giao diện." || sched_preset "$SCHEDULE" | sed 's/layout/bố cục/;s/status/trạng thái/;s/back/thoát trạng thái/;s/page/trang/' | tr '\n' ';' | sed 's/;/ · /g'); MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return ;;
   esac
@@ -1125,7 +1127,7 @@ draw() {
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
     reader) render_reader ;; status) render_status ;; stpick) render_stpick ;;
-    diag) render_diag ;; remote) render_remote ;; msg) render_msg ;;
+    diag) render_diag ;; remote) render_remote ;; msg) render_msg ;; recv) render_recv ;;
     *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
@@ -1174,7 +1176,7 @@ handle_tap() {
   case "$VIEW" in
     reader) reader_tap $x $y; return ;;
     status) status_tap $x $y; return ;;
-    diag) diag_tap $x $y; return ;; remote) remote_tap $x $y; return ;; msg) msg_tap $x $y; return ;;
+    diag) diag_tap $x $y; return ;; remote) remote_tap $x $y; return ;; msg) msg_tap $x $y; return ;; recv) recv_tap $x $y; return ;;
     stpick) stpick_tap $x $y; return ;;
     choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
@@ -1319,6 +1321,7 @@ while true; do
   idle_reset
   pomo_tick && TAPPED=1
   batt_log
+  recv_check && TAPPED=1
   sched_tick && TAPPED=1
   [ $(( LOOPN % 60 )) = 0 ] && log_trim
   if [ "$WIFI_USED" = 1 ] && [ "$VIEW" != reader ] && [ "$VIEW" != update ]; then WIFI_USED=0; wifi_save; fi
