@@ -1,7 +1,8 @@
 # So 2 bản chụp bộ nhớ màn hình (đầu vào: kết quả "cmp -l"), trả về các hình chữ nhật bám sát hình dạng vùng đổi.
 # Biến: S (byte mỗi hàng), W H (màn hình), T (cạnh ô, mặc định 16), FX FY (bộ nhớ lật ngang/dọc), MAXR (tối đa số hình), CAP
+#       R0 (bản chụp bắt đầu từ hàng bộ nhớ này, khi chỉ chụp một dải)
 # In:  "FULL" (đổi gần hết) · hoặc mỗi dòng "top left width height diện_tích_đổi"
-{ o = $1 - 1; r = int(o / S); c = o % S; if (c >= W || r >= H) next
+{ o = $1 - 1; r = int(o / S) + R0; c = o % S; if (c >= W || r >= H) next
   if (FY) r = H - 1 - r; if (FX) c = W - 1 - c
   k = int(r / T) SUBSEP int(c / T); if (!(k in TL)) { TL[k] = 1; nt++ }; n++ }
 END {

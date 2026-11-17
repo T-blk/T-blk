@@ -19,7 +19,7 @@ load_conf() {
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
   : "${CLOCK_CLEAN_MIN:=10}" "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
-  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_CLEAN:=dem}" "${DIFF_REFRESH:=1}" "${LOW_BATTERY:=5}"
+  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_CLEAN:=dem}" "${DIFF_REFRESH:=1}" "${REFRESH_WF:=auto}" "${LOW_BATTERY:=5}"
 }
 load_conf
 
@@ -380,6 +380,7 @@ refresh() { # $1 = 1 nháy đen; $2 = vùng (top=..,left=..,width=..,height=..)
   [ "$DIFF_DRAW" = 1 ] && return 0          # đang vẽ ngầm: chỉ ghi vào bộ nhớ màn hình, quét sau (diff_draw)
   inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && inv="-H"
   fl=""; [ "$1" = 1 ] && fl="-f"
+  [ "$1" != 1 ] && case "${REFRESH_WF:-auto}" in reagl) fl="-W REAGL" ;; gl16) fl="-W GL16" ;; esac   # kiểu làm mới khi không nháy
   [ -z "$2" ] && SHOWN_INV="$inv"            # chế độ đảo màu đang hiển thị (để biết khi nào phải quét lại hết)
   "$FB" -q $fl $inv -s $2 >/dev/null 2>&1
 }
@@ -494,6 +495,7 @@ image() {
     fi ;;
   esac
   eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed: $1"
+  IMG_USED=1
   # vẽ ngầm: eips đã tự làm mới vùng ảnh khi chữ phủ lên chưa vẽ -> ghi lại vùng để quét lại lúc cuối
   [ "$DIFF_DRAW" = 1 ] && { set -- "$1" "$2" "$3" $(od -An -tu1 -j16 -N8 "$1" 2>/dev/null)
     [ $# -ge 11 ] && DIFF_IMGS="$DIFF_IMGS $3:$2:$(( $5 * 65536 + $6 * 256 + $7 )):$(( $9 * 65536 + ${10} * 256 + ${11} ))"; }
@@ -867,21 +869,26 @@ clock_region_redraw() { # top left width height lệnh_vẽ...
 # Đồng hồ thông minh: vẽ ngầm số mới, so điểm ảnh -> chỉ chữ số thật sự đổi mới được xoá trắng + vẽ lại
 # (11:01 -> 11:02 chỉ chớp số cuối). Cứ CLOCK_CLEAN_MIN phút thì nháy đen riêng các chữ số đổi cho sạch.
 clock_shape() { # lệnh_vẽ... (dùng _rt _rl _rw _rh _m của clock_region_redraw)
-  dd if="$FBDEV" of=/tmp/dash_ca bs=$FB_STRIDE count=$H 2>/dev/null || return 1
-  box $_rt $_rl $_rw $_rh WHITE; "$@"
-  dd if="$FBDEV" of=/tmp/dash_cb bs=$FB_STRIDE count=$H 2>/dev/null || return 1
+  _mr0=$_rt; [ "$FB_FLIP" = 1 ] && _mr0=$(( H - _rt - _rh )); [ $_mr0 -lt 0 ] && _mr0=0   # chỉ chụp dải hàng chứa đồng hồ
+  dd if="$FBDEV" of=/tmp/dash_ca bs=$FB_STRIDE skip=$_mr0 count=$_rh 2>/dev/null || return 1
+  box $_rt $_rl $_rw $_rh WHITE; IMG_USED=0; "$@"
+  dd if="$FBDEV" of=/tmp/dash_cb bs=$FB_STRIDE skip=$_mr0 count=$_rh 2>/dev/null || return 1
   cmp -l /tmp/dash_ca /tmp/dash_cb 2>/dev/null | head -n 200000 | \
-    awk -v S=$FB_STRIDE -v W=$W -v H=$H -v T=8 -v FX=${FB_FLIPX:-0} -v FY=${FB_FLIP:-0} -v MAXR=4 -v CAP=200000 -f "$DIR/lib/fbdiff.awk" > /tmp/dash_crects
+    awk -v S=$FB_STRIDE -v W=$W -v H=$H -v T=8 -v R0=$_mr0 -v FX=${FB_FLIPX:-0} -v FY=${FB_FLIP:-0} -v MAXR=4 -v CAP=200000 -f "$DIR/lib/fbdiff.awk" > /tmp/dash_crects
   grep -q FULL /tmp/dash_crects && return 1
   _fl=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && _fl=1
   while read -r _t _l _w _h; do
     [ -n "$_h" ] || continue
     _t=$(( _t - 2 )); _l=$(( _l - 2 )); _w=$(( _w + 4 )); _h=$(( _h + 4 ))     # chừa viền cho sạch nét cũ
-    [ $_t -lt 0 ] && _t=0; [ $_l -lt 0 ] && _l=0; [ $(( _l + _w )) -gt $W ] && _w=$(( W - _l )); [ $(( _t + _h )) -gt $H ] && _h=$(( H - _t ))
+    [ $_t -lt $_rt ] && { _h=$(( _h - (_rt - _t) )); _t=$_rt; }                         # giữ trong dải đã chụp
+    [ $(( _t + _h )) -gt $(( _rt + _rh )) ] && _h=$(( _rt + _rh - _t ))
+    [ $_l -lt 0 ] && _l=0; [ $(( _l + _w )) -gt $W ] && _w=$(( W - _l ))
+    [ $_h -gt 0 ] && [ $_w -gt 0 ] || continue
     if [ $_fl = 1 ]; then refresh 1 "top=$_t,left=$_l,width=$_w,height=$_h"; continue; fi
+    [ "$IMG_USED" = 1 ] && { refresh 0 "top=$_t,left=$_l,width=$_w,height=$_h"; continue; }   # đồng hồ kim (ảnh eips): ảnh đã tự hiện, khỏi xoá trắng
     box $_t $_l $_w $_h WHITE; refresh 0 "top=$_t,left=$_l,width=$_w,height=$_h"          # 1) xoá trắng riêng chữ số đổi
     _mt=$_t; [ "$FB_FLIP" = 1 ] && _mt=$(( H - _t - _h ))                                  # 2) chép lại số mới vào bộ nhớ, làm mới
-    dd if=/tmp/dash_cb of="$FBDEV" bs=$FB_STRIDE skip=$_mt seek=$_mt count=$_h conv=notrunc 2>/dev/null
+    dd if=/tmp/dash_cb of="$FBDEV" bs=$FB_STRIDE skip=$(( _mt - _mr0 )) seek=$_mt count=$_h conv=notrunc 2>/dev/null
     refresh 0 "top=$_t,left=$_l,width=$_w,height=$_h"
   done < /tmp/dash_crects
   return 0
@@ -916,6 +923,7 @@ WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 CLOCK_CLEAN_MIN|Làm sạch vùng giờ (nháy)|10=Mỗi 10 phút;5=Mỗi 5 phút;1=Mỗi phút;0=Không nháy
 FULL_CLEAN|Nháy sạch toàn màn hình|dem=1 lần/ngày (3 giờ sáng);6=Mỗi 6 giờ;12=Mỗi 12 giờ;0=Không bao giờ
 DIFF_REFRESH|Khi nội dung đổi|1=Chỉ quét vùng đổi;0=Quét toàn màn hình
+REFRESH_WF|Kiểu làm mới (không nháy)|auto=Tự động (như cũ);reagl=REAGL (ít bóng mờ, thử);gl16=GL16 (chữ xám mịn, thử)
 CONTRAST|Độ tương phản|cao=Cao (rõ trên e-ink);vua=Vừa;nhe=Nhẹ (mảnh như bản thiết kế)
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main

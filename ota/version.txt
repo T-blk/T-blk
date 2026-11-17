@@ -1,8 +1,8 @@
-version=2026.11.17.31
-sha256=3a48a3d0545a6173d1e52a18a47fe2347cf0bbf897c7d869ec6dd651dbb3880b
-size=4842852
-core_sha=ffcfa8a883b3b1a98a8a004b34393335198ac3b71243bba854d47c6075bed5c5
-core_size=413369
+version=2026.11.17.32
+sha256=117c82e16e6848a36ecff4f9119d688b67090e8a15b227221dd56109a88dacd6
+size=4843070
+core_sha=3b91d9afbe7a47c07bb672e68440ffbc5e6d4a863f0b74d75609a068bbc96eff
+core_size=413961
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Quét theo hình dạng vùng đổi (ghép ô 16x16); đồng hồ chỉ chớp chữ số đổi; pin đổi chỉ vẽ lại ô pin; ít tiến trình hơn
+notes=Đồng hồ chỉ chụp dải hàng của nó (nhẹ hơn ~6 lần); đồng hồ kim khỏi chớp thừa; thêm tuỳ chọn kiểu làm mới REAGL/GL16
