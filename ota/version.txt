@@ -1,8 +1,8 @@
-version=2026.11.17.21
-sha256=8a124e5e14b7d56162ceb5aaddd6c4a84bd324faf0b594a5f22645c35942ec73
-size=4770629
-core_sha=a02fe3a6f88340548c9b834b2fc9f5bee4525020bf09322775abbeccf112b9c7
-core_size=339560
+version=2026.11.17.22
+sha256=9287ae70b7f82daaedc8dda3f0a1d51b403caed783685ec2526db956a92a2f88
+size=4771171
+core_sha=9593baf9d49eec8ae21485658b7f7b6dbfecddc589b92ddb90a7a52aa09391db
+core_size=340085
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa lỗi: cập nhật khi đang để lộn ngược làm cảm ứng bị ngược; tự xoay lại cho khớp cài đặt khi khởi động
+notes=Thêm 'Dashboard - Sua xoay cham' để sửa cảm ứng ngược; Dashboard - Bat ghi nhớ chiều đứng thẳng từ màn hình chính
