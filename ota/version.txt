@@ -1,8 +1,8 @@
-version=2026.11.17.09
-sha256=56619d6c03f42b31b0c6af2200a3de288708f1d7214d2869aa921ddeec1b2099
-size=4870137
-core_sha=f46d8936dea08059b0c6d725853c08f735827dce74c0509b6efb8e6b698f175d
-core_size=441137
+version=2026.11.17.10
+sha256=65be69dd1c73f036aaaaa657c38b1e1334deba880d828456047cdc9668b9353a
+size=4870228
+core_sha=01c6b8c725ee16cdd364a7d2def2f9765a42ccb8c10e769ab06cbfa55bf671ae
+core_size=441358
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Mở dashboard tức thì: đóng băng giao diện Kindle và hiện 'Đang tải' ngay khi bấm, vẽ xong nhanh hơn ~3 lần
+notes=Xoay màn hình không còn văng ra Home (thử xoay mà không đánh thức giao diện Kindle); ghi nhật ký chi tiết khi chạm thanh công cụ

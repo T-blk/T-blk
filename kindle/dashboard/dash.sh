@@ -266,10 +266,23 @@ wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; s
 # Đổi hướng khi giao diện Kindle đang tắt: bật lại, đặt khoá xoay, tắt lại (~30-60 giây)
 reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
   want=$(lock_for "$1")
-  if fw_paused; then                     # nhanh: cho giao diện chạy vài giây để đổi hướng
+  if fw_paused; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình…" >/dev/null 2>&1
-    fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; echo "$LOCK_NOW" > /tmp/dash_lock_now; log "orientationLock -> $want (fast)"
-    sleep 1; lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null; fb_geom
+    # 1) thử đổi hướng mà KHÔNG đánh thức giao diện Kindle (không lộ màn hình chính, không chạy lại các lần chạm cũ)
+    fb_geom; r0=$currentRota
+    ( set_lock "$want" ) >/dev/null 2>&1 & lp=$!
+    i=0; while kill -0 $lp 2>/dev/null && [ $i -lt 30 ]; do usleep 100000 2>/dev/null || sleep 1; i=$((i + 1)); done
+    kill $lp 2>/dev/null
+    sleep 1; fb_geom
+    if [ -n "$r0" ] && [ -n "$currentRota" ] && [ "$currentRota" != "$r0" ]; then
+      LOCK_NOW="$want"; log "orientationLock -> $want (không cần đánh thức giao diện Kindle)"
+    else
+      # 2) không được: cho giao diện Kindle chạy vài giây để nó xoay (thấy màn hình Kindle thoáng qua)
+      log "xoay khi đóng băng không có tác dụng (rota $r0 -> $currentRota) -> đánh thức tạm"
+      fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; sleep 1; fb_geom
+    fi
+    echo "$LOCK_NOW" > /tmp/dash_lock_now
+    lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
     return
   fi
   "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình… (khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
@@ -1097,6 +1110,7 @@ handle_tap() {
     elif [ $x -ge $(( B_LMIN - 8 )) ] && [ $x -lt $(( B_LMIN + 60 )) ]; then LADJ=$((LADJ - 2)); set_light
     elif [ $x -ge $(( B_STATUS - 12 )) ] && [ $x -lt $(( B_STATUS + 50 )) ]; then VIEW=stpick
     fi
+    log "toolbar x=$x (status $B_STATUS-$((B_STATUS + 50)), đèn $B_LMIN) -> view=$VIEW lock=$LOCK_NOW ${W}x${H}"
     return
   fi
   if [ $x -ge $CX ] && [ $x -le $CAL_X2 ] && [ $y -ge $CAL_Y ] && [ $y -le $CAL_Y2 ]; then

@@ -92,6 +92,7 @@ render_stpick() {
     i=$((i + 1))
   done
   refresh 1
+  log "render stpick: done"
 }
 stpick_tap() { # x y
   if [ $2 -le 80 ]; then VIEW=main; return; fi
