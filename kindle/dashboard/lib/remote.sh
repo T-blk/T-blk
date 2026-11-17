@@ -78,7 +78,6 @@ render_msg() {
   TXTOPT="-m"
   txw semi 52 50 210 "$MSG_TEXT" $(( W - 100 )) $(( H - 420 ))
   TXTOPT=""
-  [ -f "$DIR/ui/flora_div.png" ] && image "$DIR/ui/flora_div.png" $(( (W - 420) / 2 )) $(( H - 170 ))
   tx reg 22 $(( W / 2 )) $(( H - 110 )) "Lời nhắn lúc $MSG_TIME" c m
   tx reg 18 $(( W / 2 )) $(( H - 70 )) "Chạm để đóng" c s
   refresh 1

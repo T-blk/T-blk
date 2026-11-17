@@ -15,9 +15,9 @@ load_conf() {
   : "${ORIENTATION:=doc}" "${ROTATE_LAND:=1}" "${LAND_TOUCH_INVERT:=0}" "${IDLE_RESET_MIN:=5}"
   : "${PHOTO_MIN:=60}" "${PHOTO_MODE:=auto}" "${PHOTO_FIXED:=}" "${DAYS_AHEAD:=14}" "${TZ_OFFSET_MIN:=420}"
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
-  : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
+  : "${ORNAMENT:=0}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
-  : "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
+  : "${CLOCK_CLEAN_MIN:=10}" "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
@@ -456,10 +456,10 @@ lunar_today() { # -> LD LM LY LEAP CANCHI   (tính 1 lần mỗi ngày)
 holiday() { # -> HOLI_THEME HOLI_TEXT   (tính 1 lần mỗi ngày)
   [ "$HOLI_KEY" = "$Y.$M.$D.$ORNAMENT" ] && return 0; HOLI_KEY="$Y.$M.$D.$ORNAMENT"
   HOLI_THEME=""; HOLI_TEXT=""
-  [ "$ORNAMENT" = 0 ] && return
   lunar_today
   r=$(awk -v D="$D" -v M="$M" -v Y="$Y" -v LD="$L_D" -v LM="$L_M" -v LEAP="$L_LEAP" -f "$DIR/lib/holiday.awk")
-  HOLI_THEME=${r%%|*}; HOLI_TEXT=${r#*|}
+  HOLI_THEME=${r%%|*}; HOLI_TEXT=${r#*|}           # dòng chúc mừng ngày lễ vẫn hiện khi tắt viền
+  [ "$ORNAMENT" = 0 ] && HOLI_THEME=""
   case "$ORNAMENT" in thuong) HOLI_THEME=macdinh ;; hoala|hoanhai|ladeo) HOLI_THEME=$ORNAMENT ;; esac
 }
 draw_ornaments() {
@@ -685,12 +685,25 @@ render_main() { # $1 = 1 nháy đen
   log "render main: done"
 }
 
+# Vẽ lại vùng đồng hồ chống "bóng ma" e-ink (vd 0 -> 1 còn sót nét của số 0):
+#   1) tô trắng + làm mới vùng (xoá nét cũ)  2) vẽ số mới + làm mới  3) cứ CLOCK_CLEAN_MIN phút thì nháy đen
+#   riêng vùng đồng hồ một lần cho sạch hẳn (không nháy cả màn hình)
+clock_region_redraw() { # top left width height lệnh_vẽ...
+  _rt=$1; _rl=$2; _rw=$3; _rh=$4; shift 4
+  _reg="top=$_rt,left=$_rl,width=$_rw,height=$_rh"
+  box $_rt $_rl $_rw $_rh WHITE
+  _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0
+  if [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ]; then
+    "$@"; refresh 1 "$_reg"                 # nháy đen riêng vùng giờ: sạch hoàn toàn
+  else
+    refresh 0 "$_reg"                       # bước 1: xoá trắng
+    "$@"; refresh 0 "$_reg"                 # bước 2: số mới
+  fi
+}
 update_clock() { # chỉ vẽ lại vùng đồng hồ (nhanh, ít tốn pin)
   if [ "$PAGE" = main ] && layout_active; then update_clock_layout; return; fi
   set_page_clock
-  clear_rect $CLK_Y $CLK_X $CLK_W $CLK_H
-  draw_clock
-  refresh 0 "top=$CLK_Y,left=$CLK_X,width=$CLK_W,height=$CLK_H"
+  clock_region_redraw $CLK_Y $CLK_X $CLK_W $CLK_H draw_clock
 }
 
 render_photo() {
@@ -714,6 +727,7 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Hôm nay (Cổ điển)|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
+CLOCK_CLEAN_MIN|Làm sạch vùng giờ (nháy)|10=Mỗi 10 phút;5=Mỗi 5 phút;1=Mỗi phút;0=Không nháy
 CONTRAST|Độ tương phản|cao=Cao (rõ trên e-ink);vua=Vừa;nhe=Nhẹ (mảnh như bản thiết kế)
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main
@@ -1121,11 +1135,7 @@ handle_tap() {
       elif [ $x -lt $(( W / 2 )) ]; then PHOFF=$((PHOFF - 1)); else PHOFF=$((PHOFF + 1)); fi
       return ;;
   esac
-  # chạm dải viền mép trái/phải: tắt/bật hoa văn nhanh
-  if [ $y -gt 70 ] && { [ $x -le 32 ] || [ $x -ge $(( W - 32 )) ]; }; then
-    if [ "$ORNAMENT" = 0 ]; then ORNAMENT="${ORN_PREV:-auto}"; else ORN_PREV="$ORNAMENT"; ORNAMENT=0; save_setting ORN_PREV "$ORN_PREV"; fi
-    save_setting ORNAMENT "$ORNAMENT"; log "ornament -> $ORNAMENT"; return
-  fi
+
   if [ "$PAGE" != main ]; then
     if [ $y -le 70 ]; then page_header_tap $x; return; fi
     CY_TAP=$y
@@ -1227,6 +1237,8 @@ fb_geom
 pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 remote_init
+# Bỏ viền hoa văn trang trí (một lần, theo yêu cầu): vẫn bật lại được trong Cài đặt > Giao diện
+[ -f "$DIR/.mig_noorn" ] || { save_setting ORNAMENT 0; ORNAMENT=0; touch "$DIR/.mig_noorn"; }
 if [ -s /tmp/dash_notice ]; then MSG_TEXT=$(cat /tmp/dash_notice); rm -f /tmp/dash_notice; MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; fi
 
 TAPPED=1

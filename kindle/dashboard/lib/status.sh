@@ -60,13 +60,11 @@ render_status() {
     txw semi 60 40 $y "$name" $(( W - 80 )) 84
     txw light 36 50 $(( y + 92 )) "$hook" $(( W - 100 )) 150 m
     TXTOPT=""
-    [ -f "$DIR/ui/flora_div.png" ] && image "$DIR/ui/flora_div.png" $(( (W - 420) / 2 )) $(( H - 120 ))
     tx reg 18 $(( W / 2 )) $(( H - 64 )) "Chạm để quay lại  ·  vuốt ngang: câu khác" c s
   else
     image "$img" $(( 30 + (580 - iw) / 2 )) $(( 80 + (650 - ih) / 2 ))
     tx semi 52 640 200 "$name" l k 360
     txw light 32 640 290 "$hook" 360 220 m
-    [ -f "$DIR/ui/flora_div.png" ] && image "$DIR/ui/flora_div.png" 600 560
     tx reg 18 640 640 "Chạm để quay lại · vuốt: câu khác" l s 360
   fi
   refresh 1

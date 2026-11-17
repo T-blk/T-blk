@@ -276,7 +276,5 @@ render_layout() { # $1 = 1 nháy đen
 update_clock_layout() {
   lay_setup
   set -- $CB
-  rect $1 $2 $3 $4 WHITE
-  w_clock $CB $CA
-  refresh 0 "top=$2,left=$1,width=$3,height=$4"
+  clock_region_redraw $2 $1 $3 $4 w_clock $CB $CA
 }
