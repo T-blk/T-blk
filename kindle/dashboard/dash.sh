@@ -48,12 +48,12 @@ if [ "$1" != "--once" ]; then
     case "$_r0" in [0-3]) [ -n "$_vw" ] && [ -n "$_vh" ] && [ "$_vw" -lt "$_vh" ] && echo "$_r0" > "$DIR/.rota_up2" ;; esac
     _ln=U
     if [ "$_w" != U ] || [ "$_lo" != U ]; then
-      lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null; sleep 3
+      [ "$_lo" = "$_w" ] && { lipc-set-prop com.lab126.winmgr orientationLock U 2>/dev/null; sleep 1; }   # "đá" để Kindle xoay thật
+      lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null
+      _k=0; while [ $_k -lt 12 ] && [ "$(_geo currentRota)" = "$_r0" ]; do usleep 500000 2>/dev/null || sleep 1; _k=$((_k + 1)); done
       if [ "$_w" != U ] && [ -n "$_r0" ] && [ "$(_geo currentRota)" = "$_r0" ]; then
-        # Kindle nhận lệnh nhưng màn hình không xoay -> về dọc, bỏ cài đặt xoay để lần sau không kẹt
         lipc-set-prop com.lab126.winmgr orientationLock U 2>/dev/null
-        sed -i '/^ORIENTATION=/d' "$DIR/settings.conf" 2>/dev/null; ORIENTATION=doc
-        echo "Máy chưa xoay được màn hình khi đang ở màn hình chính Kindle — đã giữ chiều dọc." > /tmp/dash_notice
+        PENDING_ORIENT=1                    # thử các cách xoay khác sau khi đã vẽ xong màn hình
       elif [ "$_w" != U ]; then _ln=$_w; fi
     fi
     fw_pause
@@ -221,6 +221,7 @@ update_data() {
   fi
   log "data: xong trong $(( $(date +%s) - t0 )) giây"; stat_wifi $(( $(date +%s) - t0 ))
   WIFI_USED=0; wifi_save
+  data_sig
   DATA_CHANGED=1
 }
 
@@ -290,41 +291,65 @@ rota_sync() {
 W=758; H=1024
 wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; sleep 1; i=$((i + 1)); done; return 1; }
 # Đổi hướng khi giao diện Kindle đang tắt: bật lại, đặt khoá xoay, tắt lại (~30-60 giây)
-reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
-  want=$(lock_for "$1")
-  if fw_paused; then
-    "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình…" >/dev/null 2>&1
-    # 1) thử đổi hướng mà KHÔNG đánh thức giao diện Kindle (không lộ màn hình chính, không chạy lại các lần chạm cũ)
-    fb_geom; r0=$currentRota
-    ( set_lock "$want" ) >/dev/null 2>&1 & lp=$!
-    i=0; while kill -0 $lp 2>/dev/null && [ $i -lt 30 ]; do usleep 100000 2>/dev/null || sleep 1; i=$((i + 1)); done
-    kill $lp 2>/dev/null
-    sleep 1; fb_geom
-    if [ -n "$r0" ] && [ -n "$currentRota" ] && [ "$currentRota" != "$r0" ]; then
-      LOCK_NOW="$want"; log "orientationLock -> $want (không cần đánh thức giao diện Kindle)"
-    else
-      # 2) không được: cho giao diện Kindle chạy vài giây để nó xoay (thấy màn hình Kindle thoáng qua)
-      log "xoay khi đóng băng không có tác dụng (rota $r0 -> $currentRota) -> đánh thức tạm"
-      fw_thaw_do set_lock "$want"; sleep 1; fb_geom
-      if [ "$TOUCH_LOCK" = "$want" ] || { [ -z "$TOUCH_LOCK" ] && [ "$currentRota" != "$r0" ]; }; then LOCK_NOW="$want"
-      else
-        log "KHÔNG xoay được (rota $r0 -> $currentRota): giữ chiều cũ"
-        REORIENT_FAIL=1
-      fi
-    fi
-    echo "$LOCK_NOW" > /tmp/dash_lock_now
-    lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
-    return
-  fi
-  "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình… (khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
-  start framework 2>/dev/null || start lab126_gui 2>/dev/null
-  if wait_winmgr; then
-    sleep 8; set_lock "$want" && LOCK_NOW="$want"; log "orientationLock -> $want (now $(get_lock))"; sleep 3
-  else log "winmgr not available: cannot rotate"; fi
-  fw_pause
-  sleep 2
-  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+# ---------- Xoay màn hình ----------
+rota_now() { "$FB" -e 2>/dev/null | tr ';' '\n' | sed -n 's/^currentRota=//p' | head -1; }
+rota_wait() { # r0 giây -> 0 nếu góc xoay đã khác r0
+  _i=0; while [ $_i -lt $(( $2 * 2 )) ]; do [ "$(rota_now)" != "$1" ] && return 0; usleep 500000 2>/dev/null || sleep 1; _i=$((_i + 1)); done; return 1
+}
+lock_kick() { # đặt khoá xoay; nếu Kindle đang "ghi" sẵn giá trị đó (mà màn hình chưa xoay) thì đặt giá trị khác trước để nó thật sự xoay
+  _c=$(get_lock)
+  if [ "$_c" = "$1" ]; then [ "$1" = U ] && set_lock D || set_lock U; sleep 1; fi
+  set_lock "$1"
+}
+rot_ok() { # màn hình đã ở đúng kiểu chiều mong muốn chưa (dọc/lộn ngược/ngang)
   fb_geom
+  case "$want" in
+    U) [ "$TOUCH_LOCK" = U ] ;; D) [ "$TOUCH_LOCK" = D ] ;;
+    *) [ "$TOUCH_LOCK" = L ] || [ "$TOUCH_LOCK" = R ] || { [ -z "$TOUCH_LOCK" ] && [ "$W" -gt "$H" ]; } ;;
+  esac
+}
+reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
+  want=$(lock_for "$1"); REORIENT_FAIL=0
+  "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình…" >/dev/null 2>&1
+  r0=$(rota_now)
+  if fw_paused && [ -w "$ROTF" ] && [ -n "$ROTA_UP" ]; then
+    # 0) Dashboard TỰ xoay: đặt góc xoay framebuffer trực tiếp (giao diện Kindle đang đóng băng, không vẽ gì).
+    #    Trả lại góc cũ trước khi đánh thức giao diện Kindle (xem fw_resume) -> Kindle không bị ảnh hưởng.
+    [ -s /tmp/dash_rota_orig ] || echo "$r0" > /tmp/dash_rota_orig
+    case "$want" in U) dl="0" ;; D) dl="2" ;; L) dl="3 1" ;; *) dl="1 3" ;; esac
+    for d in $dl; do
+      echo $(( (ROTA_UP + d) % 4 )) > "$ROTF" 2>/dev/null; usleep 300000 2>/dev/null || sleep 1
+      if rot_ok; then log "xoay -> $want: dashboard tự xoay (rotate=$CUR_ROTA)"; echo "$LOCK_NOW" > /tmp/dash_lock_now; return; fi
+    done
+    echo "$r0" > "$ROTF" 2>/dev/null; usleep 300000 2>/dev/null || sleep 1; fb_geom
+    log "tự xoay không được (rotate $r0) -> nhờ Kindle"
+  fi
+  if fw_paused; then
+    # A) khi giao diện Kindle còn đóng băng (nhanh, không lộ màn hình Kindle)
+    ( lock_kick "$want" ) >/dev/null 2>&1 & lp=$!
+    rota_wait "$r0" 3; kill $lp 2>/dev/null
+    if rot_ok; then log "xoay -> $want: cách A (đóng băng)"; echo "$LOCK_NOW" > /tmp/dash_lock_now; return; fi
+    # B) cho giao diện Kindle chạy tạm để nó xoay
+    p=$(cat "$FW_FLAG"); kill -CONT "$p" 2>/dev/null; sleep 2
+    lock_kick "$want"; rota_wait "$r0" 10
+    kill -STOP "$p" 2>/dev/null; sleep 1
+    if rot_ok; then log "xoay -> $want: cách B (chạy tạm)"; echo "$LOCK_NOW" > /tmp/dash_lock_now; return; fi
+    # C) khởi động lại giao diện Kindle như các bản đầu (~1 phút)
+    "$FB" -q -c -m -M -t "regular=$BOLD,px=34" "Đang xoay màn hình…
+(khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
+    kill -CONT "$p" 2>/dev/null; rm -f "$FW_FLAG"
+    stop framework 2>/dev/null || stop lab126_gui 2>/dev/null; sleep 2
+  else
+    "$FB" -q -c -m -M -t "regular=$BOLD,px=34" "Đang xoay màn hình…
+(khoảng 1 phút, đừng chạm)" >/dev/null 2>&1
+  fi
+  start framework 2>/dev/null || start lab126_gui 2>/dev/null
+  if wait_winmgr; then sleep 8; lock_kick "$want"; rota_wait "$r0" 15; else log "winmgr not available: cannot rotate"; fi
+  fw_pause; sleep 1
+  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+  if rot_ok; then log "xoay -> $want: cách C (khởi động lại giao diện Kindle)"
+  else log "KHÔNG xoay được -> $want (rota $r0 -> $CUR_ROTA)"; REORIENT_FAIL=1; fi
+  echo "$LOCK_NOW" > /tmp/dash_lock_now
 }
 
 # ---------- Vẽ cơ bản ----------
@@ -583,6 +608,23 @@ events() { # KEY|DAY|MIN|ALL|LABEL|SUMMARY từ $1..$2
     awk -v TODAY="$TD" -v FROM="$1" -v TO="$2" -v TZOFF="$TZ_OFFSET_MIN" \
         -v LABEL="$(cat "${f%.ics}.label" 2>/dev/null)" -f "$DIR/lib/ical.awk" "$f"
   done | sort -n
+}
+
+# Dấu vân tay nội dung màn hình: giống nhau = không cần vẽ lại
+data_sig() { # gọi sau khi tải dữ liệu: chỉ giữ phần hiển thị (bỏ dấu thời gian thay đổi mỗi lần tải)
+  WX_SIG=""; parse_weather 2>/dev/null && WX_SIG="$WX_TEMP|$WX_DESC|$WX_MIN|$WX_MAX|$WX_RAIN|$WX_HUM|$WX_RISE|$WX_SET"
+  CAL_SIG=$(grep -hv -e '^DTSTAMP' -e '^LAST-MODIFIED' -e '^SEQUENCE' "$CALDIR"/*.ics 2>/dev/null | cksum | cut -d' ' -f1)
+}
+ev_soon() { # có sự kiện đang diễn ra / sắp tới trong 3 giờ -> cập nhật "còn N phút" mỗi 15 phút
+  EV_SOON=0; [ -s "$EV" ] || return 0
+  set -- $(date '+%H %M'); _nm=$(( 1$1 % 100 * 60 + 1$2 % 100 ))
+  awk -F'|' -v TD="$TD" -v N="$_nm" '{ split($1, k, ":") } $2 == TD && $4 == 0 && $3 + k[2] > N && $3 < N + 180 { f = 1 } END { exit !f }' "$EV" && EV_SOON=1
+}
+screen_sig() {
+  _p=""; [ "$PHOTO_MODE" != fixed ] && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
+  _q=""; [ "$EV_SOON" = 1 ] && _q=$(( mnow / 15 ))
+  _n=0; is_night && _n=1
+  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$BATT_B|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
 }
 
 # Sự kiện: chỉ đọc lại file .ics khi lịch vừa tải về hoặc khoảng ngày đổi (đỡ tốn CPU mỗi lần vẽ)
@@ -1043,22 +1085,30 @@ update_tap() { # x y
 }
 
 # ---------- Xác nhận hướng màn hình ----------
+# Nút "Giữ" đặt ở góc trên-trái: nếu chạm lại rơi vào góc đối diện (dưới-phải) nghĩa là toạ độ chạm đang bị lật
+# 180° -> tự sửa (lưu lại) rồi xác nhận luôn. Nhờ vậy chiều chạm ở chế độ ngang luôn đúng.
+confirm_box() { CBX=40; CBY=110; CBW=$(( W / 2 - 60 )); CBH=$(( H / 2 - 150 )); [ $CBH -gt 300 ] && CBH=300; }
 render_confirm() {
   left=$(( CONFIRM_DEADLINE - $(date +%s) )); [ $left -lt 0 ] && left=0
-  cx=$(( W / 2 )); cy=$(( H / 2 ))
+  confirm_box
   "$FB" -q -b -k >/dev/null 2>&1
-  TXTOPT="-m"
-  txt 34 $(( cy - 210 )) 0 "Màn hình đã đúng chiều chưa?" b
-  frame $(( cy - 110 )) $(( cx - 230 )) 460 220 5
-  txt 46 $(( cy - 70 )) 0 "CHẠM VÀO ĐÂY" b
-  txt 30 $(( cy + 4 )) 0 "để giữ chiều này"
-  txt 26 $(( cy + 150 )) 0 "Không chạm: tự quay lại sau ${left} giây"
-  TXTOPT=""
+  txt 34 30 40 "Màn hình đã đúng chiều chưa?" b $(( W - 80 ))
+  frame $CBY $CBX $CBW $CBH 5
+  txt 44 $(( CBY + CBH / 2 - 60 )) $(( CBX + 30 )) "GIỮ" b $(( CBW - 60 ))
+  txt 28 $(( CBY + CBH / 2 + 4 )) $(( CBX + 30 )) "chiều này" "" $(( CBW - 60 ))
+  txt 26 $(( H - 120 )) 40 "Chạm vào ô GIỮ. Không chạm: tự quay lại sau ${left} giây." "" $(( W - 80 )) 80
   refresh 1
 }
 confirm_tap() { # x y
-  if [ $1 -ge $(( W / 2 - 240 )) ] && [ $1 -le $(( W / 2 + 240 )) ] && [ $2 -ge $(( H / 2 - 130 )) ] && [ $2 -le $(( H / 2 + 130 )) ]; then
-    log "orientation $ORIENTATION confirmed"; VIEW=settings
+  confirm_box
+  if [ $1 -ge $CBX ] && [ $1 -le $(( CBX + CBW )) ] && [ $2 -ge $CBY ] && [ $2 -le $(( CBY + CBH )) ]; then
+    log "orientation $ORIENTATION confirmed"; VIEW=settings; return
+  fi
+  mx=$(( W - 1 - $1 )); my=$(( H - 1 - $2 ))
+  if [ $mx -ge $CBX ] && [ $mx -le $(( CBX + CBW )) ] && [ $my -ge $CBY ] && [ $my -le $(( CBY + CBH )) ]; then
+    if [ $W -gt $H ]; then LAND_TOUCH_INVERT=$(( 1 - ${LAND_TOUCH_INVERT:-0} )); save_setting LAND_TOUCH_INVERT $LAND_TOUCH_INVERT
+    else PORT_TOUCH_INVERT=$(( 1 - ${PORT_TOUCH_INVERT:-0} )); save_setting PORT_TOUCH_INVERT $PORT_TOUCH_INVERT; fi
+    log "chạm đang bị lật 180° -> đã tự sửa; orientation $ORIENTATION confirmed"; VIEW=settings
   fi
 }
 confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
@@ -1114,6 +1164,7 @@ to_view() { # toạ độ cảm ứng (luôn theo chiều dọc gốc) -> toạ 
       a=1; [ "$tl" = L ] && a=3; [ "$LAND_TOUCH_INVERT" = 1 ] && a=$(( 4 - a ))
       if [ $a = 1 ]; then VX=$py; VY=$(( 757 - px )); else VX=$(( 1023 - py )); VY=$px; fi ;;
   esac
+  case "$tl" in U|D) [ "${PORT_TOUCH_INVERT:-0}" = 1 ] && { VX=$(( 757 - VX )); VY=$(( 1023 - VY )); } ;; esac
 }
 
 handle_tap() {
@@ -1239,6 +1290,14 @@ sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 remote_init
 # Bỏ viền hoa văn trang trí (một lần, theo yêu cầu): vẫn bật lại được trong Cài đặt > Giao diện
 [ -f "$DIR/.mig_noorn" ] || { save_setting ORNAMENT 0; ORNAMENT=0; touch "$DIR/.mig_noorn"; }
+if [ "$PENDING_ORIENT" = 1 ]; then
+  log "khởi động: chưa xoay được sang $ORIENTATION -> thử cách khác"
+  reorient "$ORIENTATION"
+  if [ "$REORIENT_FAIL" = 1 ]; then
+    save_setting ORIENTATION doc; ORIENTATION=doc; reorient doc
+    echo "Máy chưa xoay được màn hình sang chiều đã chọn — đã giữ chiều dọc." > /tmp/dash_notice
+  fi
+fi
 if [ -s /tmp/dash_notice ]; then MSG_TEXT=$(cat /tmp/dash_notice); rm -f /tmp/dash_notice; MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; fi
 
 TAPPED=1
@@ -1246,7 +1305,7 @@ LAST_ACT=$(date +%s)
 while true; do
   set -- $(date '+%Y%m%d%H %M %S %s'); NOW_YMDH=$1; mnow=${2#0}; NOW_SEC=${3#0}; NOWE=$4
   LOOPN=$(( ${LOOPN:-0} + 1 ))
-  b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; fi   # pin: mỗi 5 vòng
+  b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; [ -n "$b" ] && BATT_B=$(( b / 10 )); fi   # pin: mỗi 5 vòng
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
       || { eips -c; eips 10 20 "PIN YEU - HAY SAC KINDLE ($b%)"; }
@@ -1255,7 +1314,7 @@ while true; do
   confirm_check && TAPPED=1
   [ $(( LOOPN % 3 )) = 1 ] && ensure_fw_stopped && TAPPED=1   # chạm nào cũng kiểm tra lại, ở đây chỉ cần thưa
   # Lần vẽ đầu tiên: vẽ ngay bằng dữ liệu đã có (không chờ bật Wi-Fi + tải), tải mới ngay sau đó
-  if [ "${FIRSTDRAW:-1}" = 1 ]; then FIRSTDRAW=0; QUICKNEXT=1; log "vẽ ngay, tải dữ liệu sau"
+  if [ "${FIRSTDRAW:-1}" = 1 ]; then FIRSTDRAW=0; QUICKNEXT=1; data_sig; log "vẽ ngay, tải dữ liệu sau"
   else [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }; fi
   idle_reset
   pomo_tick && TAPPED=1
@@ -1265,20 +1324,25 @@ while true; do
   if [ "$WIFI_USED" = 1 ] && [ "$VIEW" != reader ] && [ "$VIEW" != update ]; then WIFI_USED=0; wifi_save; fi
   [ "$VIEW" = main ] && auto_page
   set_light
-  # vẽ toàn màn hình khi: có chạm, dữ liệu mới, đổi ngày/giờ, mỗi 15 phút; còn lại chỉ vẽ đồng hồ
-  key="$NOW_YMDH$(( mnow / 15 ))"
+  # Chỉ vẽ lại toàn màn hình khi NỘI DUNG thật sự đổi (thời tiết, lịch, ngày, ảnh, pin, trang…) hoặc có chạm;
+  # còn lại chỉ vẽ lại ô đồng hồ. Màn hình phụ (Cài đặt, lời nhắn…) chỉ vẽ lại khi chạm.
+  key=$(screen_sig)
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   if [ "$VIEW" = status ]; then
     key=$(status_key)
     if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then draw 0; LAST_KEY="$key"; [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }; else status_tick; fi
-  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
+  elif [ "$VIEW" != main ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "$VIEW" != confirm ]; then
+    :                                                      # màn hình phụ, không chạm: giữ nguyên, không quét
+  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
+    [ "$key" != "$LAST_KEY" ] && [ $TAPPED = 0 ] && [ -n "$LAST_KEY" ] && log "nội dung đổi -> vẽ lại"
     LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
     [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0
-    draw $full; LAST_KEY="$key"; stat_full
+    draw $full; LAST_KEY="$key"; stat_full; LAST_VIEW=$VIEW
+    [ "$VIEW" = main ] && ev_soon
     [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }
   else
-    update_clock; stat_part
+    update_clock; stat_part; LAST_VIEW=$VIEW
   fi
   TAPPED=0; DATA_CHANGED=0
   every=$REFRESH_MIN; is_night && every=$REFRESH_NIGHT_MIN

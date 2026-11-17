@@ -1,8 +1,8 @@
-version=2026.11.17.14
-sha256=1540a5aa6cdb493a0501346b54822ab4255153edcf1921aae6a97dbf3fb9dd65
-size=4871738
-core_sha=249863bda4d802a2c759d72a00f2740fddfd1942bd5fec1f0d1c91714a4aaf32
-core_size=442535
+version=2026.11.17.15
+sha256=68da44b4e415dd81e3a13007f47ae16198a46c6f5404b61ce8c2e29d84749a32
+size=4874225
+core_sha=7372edfde4f1a96b63dd06895017b8fa6d928ddd712ef042a4cf3ba5e4f42bd7
+core_size=443964
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa số giờ còn bóng mờ khi đổi (xoá trắng trước khi vẽ, nháy riêng vùng giờ mỗi 10 phút); bỏ viền hoa văn trang trí
+notes=Xoay ngang được (dashboard tự xoay, màn hình xác nhận tự dò chiều chạm); chỉ vẽ lại khi nội dung đổi — bớt quét màn hình, đỡ pin; màn hình phụ không còn nháy mỗi phút

@@ -20,6 +20,10 @@ fw_resume() {
   if [ -f "$FW_FLAG" ]; then
     _p=$(cat "$FW_FLAG"); rm -f "$FW_FLAG"
     if [ -n "$(proc_state "$_p")" ]; then
+      # dashboard đã tự xoay framebuffer -> trả góc cũ TRƯỚC khi giao diện Kindle chạy lại
+      if [ -s /tmp/dash_rota_orig ]; then
+        echo "$(cat /tmp/dash_rota_orig)" > /sys/class/graphics/fb0/rotate 2>/dev/null; rm -f /tmp/dash_rota_orig
+      fi
       kill -CONT "$_p" 2>/dev/null
       lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
       fw_repaint
