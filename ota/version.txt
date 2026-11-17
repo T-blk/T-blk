@@ -1,8 +1,8 @@
-version=2026.11.17.01
-sha256=110c80066a19a9d1adeab863747c7a136bc06625aee5ac7d03749921489498d3
-size=4861107
-core_sha=916f508ab71692720fb9a4d037c9ab67ee45ed4a839d5b2bec8d3e39849c5e4f
-core_size=431264
+version=2026.11.17.02
+sha256=f4cfa342f4b205a9c7e22cbc6dc97da5e24e1fd5acade13b63db0f20a32db5ad
+size=4861168
+core_sha=663f823108ef0dc0bd325f06a6e017d22a890e23c9c1bfc6a7e70cef971033ed
+core_size=431339
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Điều khiển từ điện thoại (trạng thái, lời nhắn, bố cục, đèn, pin); tự đổi giao diện theo giờ + tự bật Đang họp theo lịch; trang Chẩn đoán & pin (ước tính còn mấy ngày, biểu đồ 48 giờ); ngủ sâu ban đêm (thử nghiệm, mặc định tắt); Cài đặt chia nhóm
+notes=Sửa lỗi treo ở 'Đang tải dashboard…' (bản 2026.11.17.01)

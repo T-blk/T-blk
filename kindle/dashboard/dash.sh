@@ -148,27 +148,29 @@ update_data() {
   # Đã bật sóng thì tải luôn những thứ sắp đến hạn (>= 70% chu kỳ) -> ít lần bật Wi-Fi hơn
   DUE_PCT=70
   # Tải song song: thời gian bật sóng ngắn lại
-  time_sync & 
+  JOBS=""
+  time_sync & JOBS="$JOBS $!"
   if [ "${AUTO_UPDATE_CHECK:-1}" = 1 ] && due /tmp/dash_otacheck 1440; then
-    ( sh "$DIR/update.sh" --check > /tmp/dash_otaresult 2>/dev/null; date +%s > /tmp/dash_otacheck ) &
+    ( sh "$DIR/update.sh" --check > /tmp/dash_otaresult 2>/dev/null; date +%s > /tmp/dash_otacheck ) & JOBS="$JOBS $!"
   fi
   if due "$WX" "$WEATHER_MIN"; then
     q="latitude=$LAT&longitude=$LON&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=6"
-    ( fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' ) &
+    ( fetch "https://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' || fetch "http://api.open-meteo.com/v1/forecast?$q" "$WX" '"current"' ) & JOBS="$JOBS $!"
   fi
-  fetch_aqi &
-  fetch_news &
+  fetch_aqi & JOBS="$JOBS $!"
+  fetch_news & JOBS="$JOBS $!"
   if [ -n "$ICS_URL" ] && due "$CALDIR/stamp" "$CALENDAR_MIN"; then
     mkdir -p "$CALDIR"; k=0
     for u in $ICS_URL; do
       k=$((k + 1)); label=""
       case "$u" in *=webcal://*|*=http://*|*=https://*) label="${u%%=*}"; u="${u#*=}" ;; esac
       u=$(echo "$u" | sed 's#^webcal://#https://#')
-      ( fetch "$u" "$CALDIR/$k.ics" "BEGIN:VCALENDAR" && echo "$label" > "$CALDIR/$k.label" ) &
+      ( fetch "$u" "$CALDIR/$k.ics" "BEGIN:VCALENDAR" && echo "$label" > "$CALDIR/$k.label" ) & JOBS="$JOBS $!"
     done
     date +%s > "$CALDIR/stamp"
   fi
-  wait
+  # chỉ chờ đúng các lần tải vừa chạy (KHÔNG "wait" trống: sẽ chờ cả bộ đọc cảm ứng chạy mãi -> treo)
+  for jp in $JOBS; do wait "$jp" 2>/dev/null; done
   DUE_PCT=100
   if [ -s /tmp/dash_otaresult ]; then
     r=$(cat /tmp/dash_otaresult); rm -f /tmp/dash_otaresult; log "update check: $r"
