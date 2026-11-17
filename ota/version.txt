@@ -1,8 +1,8 @@
-version=2026.11.17.10
-sha256=65be69dd1c73f036aaaaa657c38b1e1334deba880d828456047cdc9668b9353a
-size=4870228
-core_sha=01c6b8c725ee16cdd364a7d2def2f9765a42ccb8c10e769ab06cbfa55bf671ae
-core_size=441358
+version=2026.11.17.11
+sha256=47ade9ec0ae50704b5045b0ab20aaf7794f8e9a524760117bd16a64b0d4a543a
+size=4870808
+core_sha=6909aceac7d74c129afbe98a376ec49bceae72384b378bad01d4396cca48b0b4
+core_size=441797
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Xoay màn hình không còn văng ra Home (thử xoay mà không đánh thức giao diện Kindle); ghi nhật ký chi tiết khi chạm thanh công cụ
+notes=Sửa: sau khi xoay lỗi bấm gì cũng không ăn (toạ độ chạm nay theo chiều thật của màn hình); không xoay được thì giữ chiều cũ và báo; biểu tượng chuyển trang dễ hiểu hơn

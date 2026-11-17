@@ -254,12 +254,26 @@ lock_for() { case "$1" in nguoc) echo D ;; ngangtrai) echo L ;; ngangphai) echo 
 get_lock() { lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null; }
 set_lock() { lipc-set-prop com.lab126.winmgr orientationLock "$1" 2>/dev/null; }
 LOCK_NOW=U
-fb_geom() { # đọc kích thước thật từ FBInk sau khi xoay
+fb_geom() { # đọc kích thước + góc xoay THẬT từ FBInk
   viewWidth=""; viewHeight=""; currentRota=""
   eval "$("$FB" -e 2>/dev/null | tr -d '\n')" 2>/dev/null
   if [ -n "$viewWidth" ] && [ -n "$viewHeight" ]; then W=$viewWidth; H=$viewHeight
   elif [ "$LOCK_NOW" = L ] || [ "$LOCK_NOW" = R ]; then W=1024; H=758; else W=758; H=1024; fi
-  log "geometry ${W}x${H} rota=${currentRota:-?} lock=$LOCK_NOW"
+  CUR_ROTA=$currentRota
+  rota_sync
+  log "geometry ${W}x${H} rota=${currentRota:-?} lock=$LOCK_NOW (chạm theo ${TOUCH_LOCK:-$LOCK_NOW})"
+}
+# Toạ độ chạm luôn tính theo chiều THẬT của màn hình (góc xoay framebuffer), không theo việc ta "nghĩ" đã xoay:
+# ROTA_UP = góc xoay khi màn hình đứng thẳng (lưu trong .rota_up). Lệch 0/2 = dọc/lộn ngược, 1/3 = ngang.
+rota_sync() {
+  case "$CUR_ROTA" in [0-3]) ;; *) TOUCH_LOCK=""; return ;; esac
+  [ -n "$ROTA_UP" ] || ROTA_UP=$(cat "$DIR/.rota_up" 2>/dev/null)
+  if [ -z "$ROTA_UP" ]; then
+    [ "$EARLY" = fresh ] || { TOUCH_LOCK=""; return; }       # chỉ học khi vừa đọc hướng thật từ Kindle
+    case "$LOCK_NOW" in D) o=2 ;; R) o=1 ;; L) o=3 ;; *) o=0 ;; esac
+    ROTA_UP=$(( (CUR_ROTA - o + 4) % 4 )); echo "$ROTA_UP" > "$DIR/.rota_up"
+  fi
+  case $(( (CUR_ROTA - ROTA_UP + 4) % 4 )) in 0) TOUCH_LOCK=U ;; 2) TOUCH_LOCK=D ;; 1) TOUCH_LOCK=R ;; 3) TOUCH_LOCK=L ;; esac
 }
 W=758; H=1024
 wait_winmgr() { i=0; while [ $i -lt 90 ]; do [ -n "$(get_lock)" ] && return 0; sleep 1; i=$((i + 1)); done; return 1; }
@@ -279,7 +293,13 @@ reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
     else
       # 2) không được: cho giao diện Kindle chạy vài giây để nó xoay (thấy màn hình Kindle thoáng qua)
       log "xoay khi đóng băng không có tác dụng (rota $r0 -> $currentRota) -> đánh thức tạm"
-      fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; sleep 1; fb_geom
+      fw_thaw_do set_lock "$want"; sleep 1; fb_geom
+      if [ "$TOUCH_LOCK" = "$want" ] || { [ -z "$TOUCH_LOCK" ] && [ "$currentRota" != "$r0" ]; }; then LOCK_NOW="$want"
+      else
+        log "KHÔNG xoay được (rota $r0 -> $currentRota): giữ chiều cũ"
+        "$FB" -q -c -m -M -t "regular=$BOLD,px=32" "Máy chưa xoay được màn hình.
+Vẫn giữ chiều cũ." >/dev/null 2>&1; sleep 2
+      fi
     fi
     echo "$LOCK_NOW" > /tmp/dash_lock_now
     lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
@@ -1058,10 +1078,11 @@ restore_lock_bg() { # trả khoá xoay về như lúc bắt đầu, sau khi giao
 
 to_view() { # toạ độ cảm ứng (luôn theo chiều dọc gốc) -> toạ độ theo hướng đang hiển thị
   px=$1; py=$2; VX=$px; VY=$py
-  case "$LOCK_NOW" in
+  tl=${TOUCH_LOCK:-$LOCK_NOW}
+  case "$tl" in
     D) VX=$(( 757 - px )); VY=$(( 1023 - py )) ;;
     L|R)
-      a=1; [ "$LOCK_NOW" = L ] && a=3; [ "$LAND_TOUCH_INVERT" = 1 ] && a=$(( 4 - a ))
+      a=1; [ "$tl" = L ] && a=3; [ "$LAND_TOUCH_INVERT" = 1 ] && a=$(( 4 - a ))
       if [ $a = 1 ]; then VX=$py; VY=$(( 757 - px )); else VX=$(( 1023 - py )); VY=$px; fi ;;
   esac
 }
