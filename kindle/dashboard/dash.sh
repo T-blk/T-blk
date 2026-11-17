@@ -1140,7 +1140,7 @@ want=$(lock_for "$ORIENTATION")
 if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
 log "orientation $ORIENTATION: lock $LOCK_ORIG -> $LOCK_NOW"
 fw_pause
-if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; sleep 1; else log "framework stopped"; sleep 2; fi
+if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; usleep 300000 2>/dev/null || sleep 1; else log "framework stopped"; sleep 2; fi
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
 log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"
@@ -1162,7 +1162,9 @@ while true; do
   fi
   confirm_check && TAPPED=1
   [ $(( LOOPN % 3 )) = 1 ] && ensure_fw_stopped && TAPPED=1   # chạm nào cũng kiểm tra lại, ở đây chỉ cần thưa
-  [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }
+  # Lần vẽ đầu tiên: vẽ ngay bằng dữ liệu đã có (không chờ bật Wi-Fi + tải), tải mới ngay sau đó
+  if [ "${FIRSTDRAW:-1}" = 1 ]; then FIRSTDRAW=0; QUICKNEXT=1; log "vẽ ngay, tải dữ liệu sau"
+  else [ "$VIEW" = confirm ] || [ -n "$SERVER_URL" ] || { log "data: update"; update_data; log "data: done"; }; fi
   idle_reset
   pomo_tick && TAPPED=1
   batt_log
@@ -1190,6 +1192,7 @@ while true; do
   s=$(date +%S); s=${s#0}; [ -z "$s" ] && s=0; secs=$(( every * 60 - s )); [ "$VIEW" = confirm ] && secs=5
   pc=$(pomo_sleep_cap); [ $pc -lt $secs ] && secs=$pc
   pomo_running && [ $secs -gt 60 ] && secs=60
+  [ "$QUICKNEXT" = 1 ] && { QUICKNEXT=0; secs=1; }          # vừa vẽ lần đầu -> tải dữ liệu ngay
   remote_state
   if deep_want; then deep_cycle; TAPPED=1; DATA_CHANGED=1; continue; fi   # ngủ sâu ban đêm (nếu bật)
   sleep $secs & SP=$!
