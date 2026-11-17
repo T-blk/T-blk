@@ -1,8 +1,8 @@
-version=2026.11.17.06
-sha256=769d43aa9f43c1db6d4d774a4ae9ddf13b4a9f30d3c579608e10a9882af853be
-size=4869581
-core_sha=45f117f5b8cbf3b32ed6b3e0839bb7bf7b55357d1938cff4a4c2fba8a1737bc4
-core_size=439743
+version=2026.11.17.07
+sha256=24e7c07e80617efe1ee4092e05edc33d9b201aeb39957cf6bd317a698d34dc4b
+size=4870169
+core_sha=4f1dd0f99b09c0fa8dc3eed70986e41827de39a8e849bf6f23b1e3cb8d9a49aa
+core_size=440873
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa: màn hình Kindle bị khuyết sau khi về Home (bắt vẽ lại toàn màn hình); chữ rõ hơn; API cho ứng dụng điện thoại
+notes=Về Home: không còn bật nhầm menu ⋮, màn hình Kindle được vẽ lại đầy đủ (có thể chọn 'ngủ rồi dậy' cho chắc nhất)

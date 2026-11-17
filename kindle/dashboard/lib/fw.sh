@@ -33,13 +33,21 @@ fw_paused() { [ -f "$FW_FLAG" ]; }
 # Bắt giao diện Kindle vẽ lại TOÀN màn hình: nếu đang ở màn hình chính thì lệnh "mở màn hình chính" bị bỏ qua
 # (chỉ vẽ lại vài vùng -> chỗ dashboard từng vẽ bị khuyết). Chuyển qua trang Cài đặt rồi về lại: mỗi lần
 # chuyển ứng dụng Kindle đều vẽ lại cả màn hình.
+# Khi giao diện Kindle chạy lại, nó xử lý nốt các lần chạm bị xếp hàng lúc đóng băng (vd cú chạm vào nút Nhà
+# ở góc phải trên = nút ⋮ của Kindle -> menu bật ra). Nên: đợi nó xử lý xong, rồi chuyển qua trang Cài đặt và về
+# màn hình chính -> đóng mọi menu/trang lỡ mở + vẽ lại toàn màn hình.
+# HOME_REPAINT: chuyen (mặc định, ~3 giây) · nguon = thêm "ngủ rồi dậy" như bấm nút nguồn 2 lần (~7 giây, vẽ lại
+# chắc chắn nhất) · 0 = không làm gì
 fw_repaint() {
-  usleep 400000 2>/dev/null || sleep 1
-  if [ "${HOME_REPAINT:-1}" = 1 ]; then
-    lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.settings 2>/dev/null
-    sleep 2
-  fi
+  [ "${HOME_REPAINT:-chuyen}" = 0 ] && return 0
+  sleep 1                                              # để Kindle xử lý hết các lần chạm tồn đọng
+  lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.settings 2>/dev/null
+  sleep 2
   lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>/dev/null
+  if [ "$HOME_REPAINT" = nguon ] && command -v powerd_test >/dev/null 2>&1; then
+    sleep 1; lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
+    powerd_test -p >/dev/null 2>&1; sleep 3; powerd_test -p >/dev/null 2>&1
+  fi
 }
 
 # Cho giao diện Kindle chạy tạm vài giây để làm việc cần nó (vd đổi hướng màn hình), rồi đóng băng lại

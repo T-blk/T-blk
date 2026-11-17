@@ -17,7 +17,7 @@ load_conf() {
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
-  : "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
+  : "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
@@ -655,6 +655,7 @@ LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
 NIGHT_INVERT|Đảo màu ban đêm|0=Tắt;1=Bật (thử)
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
 HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
+HOME_REPAINT|Khi về Home, làm mới Kindle|chuyen=Chuyển trang (~3 giây);nguon=Thêm ngủ rồi dậy (~7 giây, chắc nhất);0=Không
 DEEP_SLEEP|Ngủ sâu ban đêm|0=Tắt;1=Bật (thử nghiệm)
 DEEP_SLEEP_MIN|Khi ngủ sâu, dậy mỗi|30=30 phút;60=1 giờ;120=2 giờ
 @SLEEPTEST|Thử ngủ sâu 1 phút…|'
