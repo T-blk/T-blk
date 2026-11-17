@@ -19,7 +19,7 @@ load_conf() {
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
   : "${CLOCK_CLEAN_MIN:=10}" "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
-  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
+  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_CLEAN:=dem}" "${DIFF_REFRESH:=1}" "${LOW_BATTERY:=5}"
 }
 load_conf
 
@@ -275,7 +275,7 @@ fb_geom() { # đọc kích thước + góc xoay THẬT từ FBInk
   eval "$("$FB" -e 2>/dev/null | tr -d '\n')" 2>/dev/null
   if [ -n "$viewWidth" ] && [ -n "$viewHeight" ]; then W=$viewWidth; H=$viewHeight
   elif [ "$LOCK_NOW" = L ] || [ "$LOCK_NOW" = R ]; then W=1024; H=758; else W=758; H=1024; fi
-  CUR_ROTA=$currentRota
+  CUR_ROTA=$currentRota; fb_stride
   rota_sync
   log "geometry ${W}x${H} rota=${currentRota:-?} lock=$LOCK_NOW (chạm theo ${TOUCH_LOCK:-$LOCK_NOW})"
 }
@@ -369,10 +369,53 @@ box() { "$FB" -q -b -B "${5:-BLACK}" -k "top=$1,left=$2,width=$3,height=$4" >/de
 frame() { box "$1" "$2" "$3" "${5:-3}"; box $(( $1 + $4 - ${5:-3} )) "$2" "$3" "${5:-3}"; box "$1" "$2" "${5:-3}" "$4"; box "$1" $(( $2 + $3 - ${5:-3} )) "${5:-3}" "$4"; }
 clear_rect() { box "$1" "$2" "$3" "$4" WHITE; }
 refresh() { # $1 = 1 nháy đen; $2 = vùng (top=..,left=..,width=..,height=..)
+  [ "$DIFF_DRAW" = 1 ] && return 0          # đang vẽ ngầm: chỉ ghi vào bộ nhớ màn hình, quét sau (diff_draw)
   inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && inv="-H"
   fl=""; [ "$1" = 1 ] && fl="-f"
   "$FB" -q $fl $inv -s $2 >/dev/null 2>&1
 }
+# ---------- Chỉ quét vùng thật sự thay đổi ----------
+# Vẽ toàn bộ vào bộ nhớ màn hình (chưa hiện), so từng dải 32 hàng trước/sau bằng cksum,
+# rồi chỉ làm mới các dải khác nhau. Phần không đổi trên màn hình hoàn toàn đứng yên.
+FBDEV=${FBDEV:-/dev/fb0}; BAND=32
+fb_stride() { # chỉ dùng khi bộ nhớ màn hình xếp đúng theo chiều đang hiển thị (mỗi hàng ~ W điểm ảnh)
+  FB_STRIDE=$(cat /sys/class/graphics/fb0/stride 2>/dev/null); _bpp=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
+  case "$FB_STRIDE$_bpp" in ''|*[!0-9]*) FB_STRIDE=""; return ;; esac
+  _row=$(( W * _bpp / 8 )); [ "$FB_STRIDE" -ge $_row ] && [ "$FB_STRIDE" -le $(( _row + 128 )) ] || FB_STRIDE=""
+  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
+}
+fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
+  _bs=$(( FB_STRIDE * BAND )); _nb=$(( (H + BAND - 1) / BAND )); _i=0
+  while [ $_i -lt $_nb ]; do dd if="$FBDEV" bs=$_bs skip=$_i count=1 2>/dev/null | cksum; _i=$(( _i + 1 )); done
+}
+diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu không làm được (khi đó gọi draw bình thường)
+  [ -n "$FB_STRIDE" ] && [ -r "$FBDEV" ] || return 1
+  fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1
+  DIFF_DRAW=1; draw 0; DIFF_DRAW=0
+  fb_sums > /tmp/dash_sums_b 2>/dev/null
+  _runs=$(awk -v B=$BAND -v H=$H 'NR == FNR { a[FNR] = $0; next }
+      { if (a[FNR] != $0) { if (s == "") s = FNR; e = FNR } else if (s != "") { printf "%d:%d ", (s-1)*B, (e-s+1)*B; s = "" } }
+      END { if (s != "") printf "%d:%d ", (s-1)*B, (e-s+1)*B }' /tmp/dash_sums_a /tmp/dash_sums_b)
+  _tot=0; for _r in $_runs; do _tot=$(( _tot + ${_r#*:} )); done
+  if [ $_tot -ge $(( H * 7 / 10 )) ]; then refresh 0; log "quét: gần hết màn hình ($_tot hàng)"; return 0; fi
+  [ -z "$_runs" ] && { log "quét: không có gì đổi"; return 0; }
+  for _r in $_runs; do
+    _t=${_r%:*}; _h=${_r#*:}; [ $(( _t + _h )) -gt $H ] && _h=$(( H - _t ))
+    _f=0; [ $_h -ge $(( H / 4 )) ] && _f=1      # vùng lớn (ảnh mới…) thì nháy riêng vùng đó cho khỏi bóng mờ
+    refresh $_f "top=$_t,left=0,width=$W,height=$_h"
+  done
+  log "quét vùng đổi: $_runs"
+  return 0
+}
+# Nháy sạch toàn màn hình định kỳ (chống bóng mờ tích luỹ): mặc định 1 lần lúc 3 giờ sáng
+clean_due() {
+  case "${FULL_CLEAN:-dem}" in
+    0) return 1 ;;
+    dem) _d=$(date +%Y%m%d); [ "${NOW_YMDH#????????}" = 03 ] && [ "$CLEAN_DAY" != "$_d" ] && { CLEAN_DAY=$_d; return 0; }; return 1 ;;
+    *) [ $(( NOWE - ${CLEAN_AT:-0} )) -ge $(( FULL_CLEAN * 3600 )) ] && return 0; return 1 ;;
+  esac
+}
+
 image() { eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed: $1"; }
 
 WD_LONG="Chủ Nhật|Thứ Hai|Thứ Ba|Thứ Tư|Thứ Năm|Thứ Sáu|Thứ Bảy"
@@ -771,6 +814,8 @@ TODAY_STYLE|Hôm nay (Cổ điển)|vong=Vòng tròn;khung=Khung vuông;gach=G�
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
 CLOCK_CLEAN_MIN|Làm sạch vùng giờ (nháy)|10=Mỗi 10 phút;5=Mỗi 5 phút;1=Mỗi phút;0=Không nháy
+FULL_CLEAN|Nháy sạch toàn màn hình|dem=1 lần/ngày (3 giờ sáng);6=Mỗi 6 giờ;12=Mỗi 12 giờ;0=Không bao giờ
+DIFF_REFRESH|Khi nội dung đổi|1=Chỉ quét vùng đổi;0=Quét toàn màn hình
 CONTRAST|Độ tương phản|cao=Cao (rõ trên e-ink);vua=Vừa;nhe=Nhẹ (mảnh như bản thiết kế)
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main
@@ -1332,17 +1377,23 @@ while true; do
   # còn lại chỉ vẽ lại ô đồng hồ. Màn hình phụ (Cài đặt, lời nhắn…) chỉ vẽ lại khi chạm.
   key=$(screen_sig)
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
+  CLEAN_NOW=0; [ "$VIEW" = main ] && clean_due && CLEAN_NOW=1
   if [ "$VIEW" = status ]; then
     key=$(status_key)
-    if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then draw 0; LAST_KEY="$key"; [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }; else status_tick; fi
+    if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then
+      { [ $TAPPED = 0 ] && [ "$LAST_VIEW" = status ] && [ "${DIFF_REFRESH:-1}" = 1 ] && diff_draw; } || draw 0
+      LAST_KEY="$key"; LAST_VIEW=$VIEW; [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }; else status_tick; fi
   elif [ "$VIEW" != main ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "$VIEW" != confirm ]; then
     :                                                      # màn hình phụ, không chạm: giữ nguyên, không quét
-  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
+  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ $CLEAN_NOW = 1 ] || [ -n "$SERVER_URL" ]; then
     [ "$key" != "$LAST_KEY" ] && [ $TAPPED = 0 ] && [ -n "$LAST_KEY" ] && log "nội dung đổi -> vẽ lại"
     LAST_PAGE="$PAGE"
-    NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
-    [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0
-    draw $full; LAST_KEY="$key"; stat_full; LAST_VIEW=$VIEW
+    full=0; [ -z "$LAST_KEY" ] && full=1                    # lần vẽ đầu: nháy sạch 1 lần
+    [ $CLEAN_NOW = 1 ] && { full=1; log "nháy sạch định kỳ"; }
+    [ $full = 1 ] && CLEAN_AT=$NOWE
+    if [ $full = 0 ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "${DIFF_REFRESH:-1}" = 1 ] && [ -z "$SERVER_URL" ] && [ -n "$FB_STRIDE" ] && { update_clock; diff_draw; }; then :   # giờ vẽ sạch trước (xoá trắng rồi vẽ), vùng khác chỉ quét chỗ đổi
+    else draw $full; fi
+    LAST_KEY="$key"; stat_full; LAST_VIEW=$VIEW
     [ "$VIEW" = main ] && ev_soon
     [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }
   else

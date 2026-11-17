@@ -80,6 +80,8 @@ TOUCH_FLIP_Y=0
 TIME_SYNC=1
 TIME_SYNC_MIN=360
 
-# Bao nhiêu lần làm mới thì nháy đen 1 lần cho sạch bóng mờ e-ink
-FULL_REFRESH_EVERY=30
+# Nháy đen toàn màn hình cho sạch bóng mờ e-ink: dem = 1 lần lúc 3 giờ sáng, số = mỗi N giờ, 0 = không
+FULL_CLEAN=dem
+# Khi nội dung đổi (thời tiết, ảnh, pin…): 1 = chỉ quét vùng đổi, 0 = quét toàn màn hình
+DIFF_REFRESH=1
 LOW_BATTERY=5
