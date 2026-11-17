@@ -60,9 +60,10 @@ w_clock() {
         *) f=thin; [ $BH -lt 130 ] && f=light ;;
       esac
       ch=$(( BH * 78 / 100 ))
-      p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$TWV; lw=0
+      # đo bằng ĐÚNG nét sẽ vẽ (độ tương phản Cao đổi Thin -> Light, rộng hơn) để số không tràn khỏi vùng xoá
+      p=$(px_for_cap $f $ch); fkey $f $p; f=$FKEY; twv $f $p "$t"; w=$(( TWV + TWV / 30 )); lw=0
       [ -n "$lab" ] && lw=$(( ch * 70 / 100 ))
-      if [ $(( w + lw )) -gt $BW ]; then ch=$(( ch * (BW - lw) / (w + 1) )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 )); p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$TWV; fi
+      if [ $(( w + lw )) -gt $BW ]; then ch=$(( ch * (BW - lw) / (w + 1) )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 )); p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$(( TWV + TWV / 30 )); fi
       case "$al" in c) lx=$(( X + (BW - w - lw) / 2 )) ;; r) lx=$(( X + BW - w - lw )) ;; *) lx=$X ;; esac
       cy=$(( Y0 + (BH - ch) / 2 ))
       txcap $f $ch $lx $cy "$t"

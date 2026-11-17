@@ -731,7 +731,8 @@ render_main() { # $1 = 1 nháy đen
 #   1) tô trắng + làm mới vùng (xoá nét cũ)  2) vẽ số mới + làm mới  3) cứ CLOCK_CLEAN_MIN phút thì nháy đen
 #   riêng vùng đồng hồ một lần cho sạch hẳn (không nháy cả màn hình)
 clock_region_redraw() { # top left width height lệnh_vẽ...
-  _rt=$1; _rl=$2; _rw=$3; _rh=$4; shift 4
+  _rt=$(( $1 - 6 )); _rl=$(( $2 - 8 )); _rw=$(( $3 + 16 )); _rh=$(( $4 + 12 )); shift 4   # vùng xoá rộng hơn chữ số một chút
+  [ $_rt -lt 0 ] && _rt=0; [ $_rl -lt 0 ] && _rl=0
   _reg="top=$_rt,left=$_rl,width=$_rw,height=$_rh"
   box $_rt $_rl $_rw $_rh WHITE
   _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0

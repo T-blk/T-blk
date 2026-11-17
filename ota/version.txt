@@ -1,8 +1,8 @@
-version=2026.11.17.17
-sha256=c002f5d9fd485981ac1a12f265cac06bd5fe30550f86b71581eb8ba72320ace2
-size=4768495
-core_sha=6586910a245a8672aa8e793de7c4495d8b10d5b793be5cf5f84a6ee5a9017498
-core_size=337800
+version=2026.11.17.18
+sha256=4a83b5e58969a448ca1f831a17b21cf7ebda583175fd857b8683f8ded971ff4f
+size=4768630
+core_sha=eb5af501f7957960374a42ca3988e570f468fb5d16d287664e1625a90bd2ce2d
+core_size=337914
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Nhận ảnh từ Mac qua Wi-Fi, không cần cắm cáp (Cài đặt > Nhận ảnh từ Mac qua Wi-Fi)
+notes=Sửa đồng hồ còn dính số cũ ở mép phải (đo đúng nét chữ đang vẽ, vùng xoá rộng hơn)
