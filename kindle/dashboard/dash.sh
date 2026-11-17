@@ -848,6 +848,7 @@ SETTINGS_DEF='@LOOK|Giao diện…|
 @AUTO|Tự động theo giờ…|
 @REMOTE|Điều khiển từ điện thoại…|
 @DIAG|Chẩn đoán & pin…|
+@CALIB|Hiệu chỉnh cảm ứng (chạm bị lệch)…|
 DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm;pomo=Pomodoro;news=Tin tức
 NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
@@ -925,7 +926,7 @@ settings_tap() { # x y
   key=${line%%|*}; opts=${line##*|}
   case "$key" in
     @LOOK) SET_GROUP=look; return ;; @POWER) SET_GROUP=power; return ;; @AUTO) SET_GROUP=auto; return ;;
-    @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;;
+    @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;; @CALIB) VIEW=calib; return ;;
     @RECV) recv_start; VIEW=recv; return ;;
     @SLEEPTEST) deep_test; return ;;
     @SCHEDVIEW) MSG_TEXT=$( [ "$SCHEDULE" = 0 ] && echo "Chưa bật lịch tự đổi giao diện." || sched_preset "$SCHEDULE" | sed 's/layout/bố cục/;s/status/trạng thái/;s/back/thoát trạng thái/;s/page/trang/' | tr '\n' ';' | sed 's/;/ · /g'); MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return ;;
@@ -1166,6 +1167,29 @@ confirm_tap() { # x y
     log "chạm đang bị lật 180° -> đã tự sửa; orientation $ORIENTATION confirmed"; VIEW=settings
   fi
 }
+# Hiệu chỉnh cảm ứng: chạm 1 lần vào ô góc trên trái. Chạm rơi vào chỗ đối xứng qua tâm -> lật cảm ứng 180°.
+render_calib() {
+  confirm_box
+  "$FB" -q -b -k >/dev/null 2>&1
+  frame $CBY $CBX $CBW $CBH 6
+  txt 44 $(( CBY + CBH / 2 - 60 )) $(( CBX + 30 )) "CHẠM" b $(( CBW - 60 ))
+  txt 28 $(( CBY + CBH / 2 + 4 )) $(( CBX + 30 )) "vào ô này" "" $(( CBW - 60 ))
+  txt 30 30 40 "Hiệu chỉnh cảm ứng" b $(( W - 80 ))
+  txt 26 $(( H - 200 )) 40 "Chạm vào ô có viền đậm ở góc trên bên trái, đúng chỗ bạn nhìn thấy. Kindle sẽ tự chỉnh hướng cảm ứng cho khớp màn hình." "" $(( W - 80 )) 150
+  refresh 1
+}
+calib_tap() { # x y
+  confirm_box
+  if [ $1 -ge $CBX ] && [ $1 -le $(( CBX + CBW )) ] && [ $2 -ge $CBY ] && [ $2 -le $(( CBY + CBH )) ]; then
+    log "hiệu chỉnh cảm ứng: đã khớp"; VIEW=main; return; fi
+  mx=$(( W - 1 - $1 )); my=$(( H - 1 - $2 ))
+  if [ $mx -ge $CBX ] && [ $mx -le $(( CBX + CBW )) ] && [ $my -ge $CBY ] && [ $my -le $(( CBY + CBH )) ]; then
+    if [ $W -gt $H ]; then LAND_TOUCH_INVERT=$(( 1 - ${LAND_TOUCH_INVERT:-0} )); save_setting LAND_TOUCH_INVERT $LAND_TOUCH_INVERT
+    else PORT_TOUCH_INVERT=$(( 1 - ${PORT_TOUCH_INVERT:-0} )); save_setting PORT_TOUCH_INVERT $PORT_TOUCH_INVERT; fi
+    log "hiệu chỉnh cảm ứng: chạm bị lật 180° -> đã sửa"; VIEW=main; return
+  fi
+  log "hiệu chỉnh cảm ứng: chạm ngoài ô ($1,$2), chờ chạm lại"
+}
 confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
   [ "$VIEW" = confirm ] || return 1
   [ $(date +%s) -ge $CONFIRM_DEADLINE ] || return 1
@@ -1178,7 +1202,7 @@ confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
 draw() {
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
-    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; update) render_update ;; choose) render_choose ;;
+    photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; calib) render_calib ;; update) render_update ;; choose) render_choose ;;
     reader) render_reader ;; status) render_status ;; stpick) render_stpick ;;
     diag) render_diag ;; remote) render_remote ;; msg) render_msg ;; recv) render_recv ;;
     *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
@@ -1234,6 +1258,7 @@ handle_tap() {
     choose) choose_tap $x $y; return ;;
     update) update_tap $x $y; return ;;
     confirm) confirm_tap $x $y; return ;;
+    calib) calib_tap $x $y; return ;;
     settings) settings_tap $x $y; return ;;
     pick) pick_tap $x $y; return ;;
     photo)
@@ -1360,6 +1385,8 @@ if [ "$PENDING_ORIENT" = 1 ]; then
 fi
 if [ -s /tmp/dash_notice ]; then MSG_TEXT=$(cat /tmp/dash_notice); rm -f /tmp/dash_notice; MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; fi
 
+# Yêu cầu hiệu chỉnh cảm ứng (từ "Dashboard - Sua xoay cham")
+[ -f "$DIR/.calib_req" ] && { rm -f "$DIR/.calib_req"; VIEW=calib; log "mở hiệu chỉnh cảm ứng"; }
 TAPPED=1
 LAST_ACT=$(date +%s)
 while true; do

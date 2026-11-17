@@ -1,8 +1,8 @@
-version=2026.11.17.22
-sha256=9287ae70b7f82daaedc8dda3f0a1d51b403caed783685ec2526db956a92a2f88
-size=4771171
-core_sha=9593baf9d49eec8ae21485658b7f7b6dbfecddc589b92ddb90a7a52aa09391db
-core_size=340085
+version=2026.11.17.23
+sha256=eb118e298fc656f29aed79696a2f69ee4388c4c548d62cc82c9d9ca0cb8cd457
+size=4771269
+core_sha=b1aa8ec1e885da835a72ceb1ad7673b1fd123cd8ec661ac0ff399e7e82a03400
+core_size=340420
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Thêm 'Dashboard - Sua xoay cham' để sửa cảm ứng ngược; Dashboard - Bat ghi nhớ chiều đứng thẳng từ màn hình chính
+notes=Thêm màn hình Hiệu chỉnh cảm ứng (Cài đặt, và tự mở khi chạy Dashboard - Sua xoay cham)

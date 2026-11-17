@@ -14,5 +14,6 @@ r=$(g currentRota); w=$(g viewWidth); h=$(g viewHeight)
 case "$r" in [0-3]) [ -n "$w" ] && [ -n "$h" ] && [ "$w" -lt "$h" ] && echo "$r" > "$D/.rota_up2" ;; esac
 if [ -f "$S" ]; then grep -v -e '^PORT_TOUCH_INVERT=' -e '^LAND_TOUCH_INVERT=' "$S" > "$S.tmp"; mv "$S.tmp" "$S"; fi
 echo "$(date '+%F %T') sua xoay: rota_up2=$(cat "$D/.rota_up2" 2>/dev/null) (rota $r ${w}x$h)" >> "$D/dashboard_fix.log"
+touch "$D/.calib_req"                       # mở dashboard bằng màn hình "chạm vào ô" để tự chỉnh hướng cảm ứng
 rm -f /tmp/dash_stop
 DASH_NOLEARN=1 nohup sh "$D/dash.sh" > "$D/dash.log" 2>&1 &
