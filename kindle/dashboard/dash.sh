@@ -22,6 +22,35 @@ load_conf() {
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
 load_conf
+
+# ---- Khởi động nhanh: đóng băng giao diện Kindle + hiện "Đang tải" NGAY, trước khi nạp phần còn lại ----
+FB=/tmp/dash_fbink
+[ -x "$FB" ] && [ ! "$DIR/bin/fbink" -nt "$FB" ] || { cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"; }
+EARLY=0
+if [ "$1" != "--once" ]; then
+  . "$DIR/lib/fw.sh"
+  case "$ORIENTATION" in nguoc) _w=D ;; ngangtrai) _w=L ;; ngangphai) _w=R ;; *) _w=U ;; esac
+  if fw_paused && [ -n "$(proc_state "$(cat "$FW_FLAG")")" ]; then
+    # tiếp quản lần chạy trước (vừa cập nhật / mở lại): giữ nguyên đóng băng, không lộ giao diện Kindle
+    [ -s /tmp/dash_lock_orig ] || echo U > /tmp/dash_lock_orig
+    _ln=$(cat /tmp/dash_lock_now 2>/dev/null); [ -n "$_ln" ] || _ln=$(cat /tmp/dash_lock_orig)
+    [ "$_w" != "$_ln" ] && fw_thaw_do lipc-set-prop com.lab126.winmgr orientationLock "$_w" && _ln=$_w
+    EARLY=takeover
+  else
+    rm -f "$FW_FLAG"
+    _lo=$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null); [ -n "$_lo" ] || _lo=U
+    echo "$_lo" > /tmp/dash_lock_orig; _ln=$_lo
+    if [ "$_w" != "$_lo" ]; then lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null && _ln=$_w; sleep 3; fi
+    fw_pause
+    EARLY=fresh
+  fi
+  trap 'if [ "$HANDOVER" != 1 ] && fw_paused; then fw_resume; fi' EXIT    # lỗi khi nạp phần sau -> vẫn trả giao diện Kindle
+  if false; then :
+  fi
+  echo "$_ln" > /tmp/dash_lock_now
+  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+  "$FB" -q -c -m -M -t "regular=$DIR/fonts/NotoSans-Bold.ttf,px=40" "Đang tải dashboard…" >/dev/null 2>&1
+fi
 . "$DIR/lib/icons.sh"
 DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/pages.sh"
@@ -55,7 +84,6 @@ log_trim() {
   [ $(wc -c < "$f") -gt 307200 ] && { tail -c 102400 "$f" > "$f.tmp" && cat "$f.tmp" > "$f"; rm -f "$f.tmp"; }
   sync 2>/dev/null
 }
-cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"
 
 battery() { lipc-get-prop com.lab126.powerd battLevel 2>/dev/null || gasgauge-info -c 2>/dev/null | tr -d '%'; }
 
@@ -1138,26 +1166,12 @@ trap 'WOKE=1' USR1
 # Thoát vì bất kỳ lý do gì (lỗi, bị dừng) -> luôn trả lại giao diện Kindle đầy đủ (trừ khi giao cho bản cập nhật)
 trap 'if [ "$HANDOVER" != 1 ] && fw_paused; then fw_resume; fi' EXIT
 trap 'exit 0' TERM INT
-want=$(lock_for "$ORIENTATION")
-if fw_paused && [ -n "$(proc_state "$(cat "$FW_FLAG")")" ]; then
-  # tiếp quản từ lần chạy trước (vừa cập nhật / khởi động lại): giao diện Kindle vẫn đang đóng băng -> giữ nguyên,
-  # không đánh thức (tránh lộ giao diện Kindle dở dang)
-  LOCK_ORIG=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U
-  LOCK_NOW=$(cat /tmp/dash_lock_now 2>/dev/null); [ -n "$LOCK_NOW" ] || LOCK_NOW=$LOCK_ORIG
-  [ "$want" != "$LOCK_NOW" ] && fw_thaw_do set_lock "$want" && LOCK_NOW="$want"
-  log "framework still paused -> take over (lock $LOCK_NOW)"
-else
-  rm -f "$FW_FLAG"
-  LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
-  LOCK_NOW="$LOCK_ORIG"
-  if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
-  fw_pause
-  if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; usleep 300000 2>/dev/null || sleep 1; else log "framework stopped"; sleep 2; fi
-fi
-echo "$LOCK_NOW" > /tmp/dash_lock_now
+# hướng màn hình + đóng băng giao diện Kindle đã làm ở phần khởi động nhanh phía trên
+LOCK_ORIG=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U
+LOCK_NOW=$(cat /tmp/dash_lock_now 2>/dev/null); [ -n "$LOCK_NOW" ] || LOCK_NOW=$LOCK_ORIG
+if [ "$EARLY" = takeover ]; then log "framework still paused -> take over (lock $LOCK_NOW)"
+elif fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; else log "framework stopped"; fi
 log "orientation $ORIENTATION: lock $LOCK_ORIG -> $LOCK_NOW"
-"$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
-lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
 log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"
 fb_geom
 pkill -f "$DIR/touch.sh" 2>/dev/null

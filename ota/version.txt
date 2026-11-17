@@ -1,8 +1,8 @@
-version=2026.11.17.07
-sha256=24e7c07e80617efe1ee4092e05edc33d9b201aeb39957cf6bd317a698d34dc4b
-size=4870169
-core_sha=4f1dd0f99b09c0fa8dc3eed70986e41827de39a8e849bf6f23b1e3cb8d9a49aa
-core_size=440873
+version=2026.11.17.09
+sha256=56619d6c03f42b31b0c6af2200a3de288708f1d7214d2869aa921ddeec1b2099
+size=4870137
+core_sha=f46d8936dea08059b0c6d725853c08f735827dce74c0509b6efb8e6b698f175d
+core_size=441137
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Về Home: không còn bật nhầm menu ⋮, màn hình Kindle được vẽ lại đầy đủ (có thể chọn 'ngủ rồi dậy' cho chắc nhất)
+notes=Mở dashboard tức thì: đóng băng giao diện Kindle và hiện 'Đang tải' ngay khi bấm, vẽ xong nhanh hơn ~3 lần
