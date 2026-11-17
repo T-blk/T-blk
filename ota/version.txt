@@ -1,8 +1,8 @@
-version=2026.11.17.30
-sha256=54af35cbcbeac2410220cda16cade7d0992701946b33b183b859e341195feaeb
-size=4840172
-core_sha=f382db300a7bdb06811c3881c27931d14ff16b61eb5cf97d888c027e47369d06
-core_size=411051
+version=2026.11.17.31
+sha256=3a48a3d0545a6173d1e52a18a47fe2347cf0bbf897c7d869ec6dd651dbb3880b
+size=4842852
+core_sha=ffcfa8a883b3b1a98a8a004b34393335198ac3b71243bba854d47c6075bed5c5
+core_size=413369
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Thêm Cờ vua (máy 3 mức hoặc 2 người) và Cờ vây (9/13/19, tính điểm); gom vào mục Trò chơi
+notes=Quét theo hình dạng vùng đổi (ghép ô 16x16); đồng hồ chỉ chớp chữ số đổi; pin đổi chỉ vẽ lại ô pin; ít tiến trình hơn

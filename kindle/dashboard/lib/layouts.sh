@@ -63,7 +63,17 @@ toolbar_icons() { # màu
 bat_top() { # màu
   [ -n "$BATT" ] || BATT=$(battery); [ -n "$BATT" ] || return 0
   _bt="$BATT%"; [ "$CHARGING" = 1 ] && _bt="$BATT%+"
+  BAT_C=${1:-m}; BAT_BG=$TXBG                  # nhớ màu chữ/nền để lần sau chỉ vẽ lại riêng ô này (bat_fast)
   tx semi 22 $(( B_STATUS - 22 )) 22 "$_bt" r ${1:-m}
+}
+bat_fast() { # chỉ vẽ lại ô % pin (khỏi vẽ ngầm cả màn hình); trả 1 nếu bố cục không hợp (vd nền là ảnh)
+  [ "$VIEW" = main ] && [ "$PAGE" = main ] && [ "$ONCE" != 1 ] && [ -n "$BAT_C" ] || return 1
+  [ "$LAYOUT" = anh ] && layout_active && return 1
+  set_layout; BATT=$1; _bx0=$(( B_STATUS - 140 ))
+  rect $_bx0 12 $(( B_STATUS - 16 - _bx0 )) 44 "${BAT_BG:-WHITE}"
+  TXBG=$BAT_BG; bat_top "$BAT_C"; TXBG=""
+  refresh 0 "top=12,left=$_bx0,width=$(( B_STATUS - 16 - _bx0 )),height=44"
+  log "pin $BATT%: chỉ vẽ lại ô pin"
 }
 slot() { echo "$1"; }                           # tiện đọc
 lunar_short() { nh=""; [ "$L_LEAP" = 1 ] && nh=" nhuận"; echo "$L_D/$L_M$nh"; }

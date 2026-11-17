@@ -384,29 +384,35 @@ refresh() { # $1 = 1 nháy đen; $2 = vùng (top=..,left=..,width=..,height=..)
   "$FB" -q $fl $inv -s $2 >/dev/null 2>&1
 }
 # ---------- Chỉ quét vùng thật sự thay đổi ----------
-# Vẽ toàn bộ vào bộ nhớ màn hình (chưa hiện), so từng dải 32 hàng trước/sau bằng cksum,
-# rồi chỉ làm mới các dải khác nhau. Phần không đổi trên màn hình hoàn toàn đứng yên.
+# Vẽ toàn bộ vào bộ nhớ màn hình (chưa hiện), chụp bộ nhớ trước/sau rồi so từng điểm ảnh (cmp -l),
+# gom điểm đổi thành ô 16x16 và ghép thành vài hình chữ nhật bám sát HÌNH DẠNG vùng đổi (lib/fbdiff.awk).
+# Bộ điều khiển e-ink chỉ nhận vùng chữ nhật, nên đây là cách gần "quét theo hình dạng" nhất.
+# Máy không có "cmp -l" thì quay về cách cũ: so từng dải 32 hàng bằng cksum.
 FBDEV=${FBDEV:-/dev/fb0}; BAND=32
 fb_stride() { # chỉ dùng khi bộ nhớ màn hình xếp đúng theo chiều đang hiển thị (mỗi hàng ~ W điểm ảnh)
   FB_STRIDE=$(cat /sys/class/graphics/fb0/stride 2>/dev/null); _bpp=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
   case "$FB_STRIDE$_bpp" in ''|*[!0-9]*) FB_STRIDE=""; return ;; esac
   _row=$(( W * _bpp / 8 )); [ "$FB_STRIDE" -ge $_row ] && [ "$FB_STRIDE" -le $(( _row + 128 )) ] || FB_STRIDE=""
   [ -n "$FB_STRIDE" ] && fb_probe
-  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE, đảo $FB_FLIP)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
+  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE, lật dọc $FB_FLIP ngang $FB_FLIPX, so điểm ảnh $FB_CMP)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
 }
 fb_probe() { # tô ngầm 4 hàng trên cùng (không làm mới), xem bộ nhớ đổi ở đầu hay cuối -> FB_FLIP; rồi trả lại như cũ
   _b=$(( FB_STRIDE * 4 )); _last=$(( H / 4 - 1 ))
   dd if="$FBDEV" of=/tmp/dash_p0 bs=$_b count=1 2>/dev/null; dd if="$FBDEV" of=/tmp/dash_p1 bs=$_b skip=$_last count=1 2>/dev/null
   _a0=$(cksum < /tmp/dash_p0); _a1=$(cksum < /tmp/dash_p1)
-  for _col in BLACK WHITE; do
-    "$FB" -q -b -B $_col -k "top=0,left=0,width=$W,height=4" >/dev/null 2>&1
-    _c0=$(dd if="$FBDEV" bs=$_b count=1 2>/dev/null | cksum); _c1=$(dd if="$FBDEV" bs=$_b skip=$_last count=1 2>/dev/null | cksum)
+  for _col in BLACK WHITE; do                 # ô nhỏ 8x4 ở góc trên-TRÁI: biết cả lật dọc lẫn lật ngang
+    "$FB" -q -b -B $_col -k "top=0,left=0,width=8,height=4" >/dev/null 2>&1
+    dd if="$FBDEV" of=/tmp/dash_q0 bs=$_b count=1 2>/dev/null; dd if="$FBDEV" of=/tmp/dash_q1 bs=$_b skip=$_last count=1 2>/dev/null
+    _c0=$(cksum < /tmp/dash_q0); _c1=$(cksum < /tmp/dash_q1)
     [ "$_c0" != "$_a0" ] || [ "$_c1" != "$_a1" ] && break
   done
-  dd if=/tmp/dash_p0 of="$FBDEV" bs=$_b conv=notrunc 2>/dev/null; dd if=/tmp/dash_p1 of="$FBDEV" bs=$_b seek=$_last conv=notrunc 2>/dev/null
-  if [ "$_c0" != "$_a0" ]; then FB_FLIP=0
-  elif [ "$_c1" != "$_a1" ]; then FB_FLIP=1
+  FB_FLIPX=0
+  if [ "$_c0" != "$_a0" ]; then FB_FLIP=0; _o=$(cmp /tmp/dash_p0 /tmp/dash_q0 2>/dev/null | sed -n 's/.* char \([0-9]*\).*/\1/p;s/.* byte \([0-9]*\).*/\1/p' | head -1)
+  elif [ "$_c1" != "$_a1" ]; then FB_FLIP=1; _o=$(cmp /tmp/dash_p1 /tmp/dash_q1 2>/dev/null | sed -n 's/.* char \([0-9]*\).*/\1/p;s/.* byte \([0-9]*\).*/\1/p' | head -1)
   else FB_STRIDE=""; log "quét vùng đổi: không dò được bộ nhớ màn hình -> tắt"; fi
+  [ -n "$_o" ] && [ $(( (_o - 1) % FB_STRIDE )) -ge $(( W / 2 )) ] && FB_FLIPX=1
+  dd if=/tmp/dash_p0 of="$FBDEV" bs=$_b conv=notrunc 2>/dev/null; dd if=/tmp/dash_p1 of="$FBDEV" bs=$_b seek=$_last conv=notrunc 2>/dev/null
+  FB_CMP=0; printf 'a' > /tmp/dash_c1; printf 'b' > /tmp/dash_c2; cmp -l /tmp/dash_c1 /tmp/dash_c2 2>/dev/null | grep -q '^ *1 ' && FB_CMP=1
 }
 fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
   _bs=$(( FB_STRIDE * BAND )); _nb=$(( (H + BAND - 1) / BAND )); _i=0
@@ -414,12 +420,14 @@ fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
 }
 diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu không làm được (khi đó gọi draw bình thường)
   [ -n "$FB_STRIDE" ] && [ -r "$FBDEV" ] || return 1
-  fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1
+  if [ "$FB_CMP" = 1 ]; then dd if="$FBDEV" of=/tmp/dash_fa bs=$FB_STRIDE count=$H 2>/dev/null || return 1
+  else fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1; fi
   DIFF_FULL=0; DIFF_IMGS=""; DIFF_DRAW=1; draw 0; DIFF_DRAW=0
   _inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && _inv="-H"
   [ "$_inv" != "$SHOWN_INV" ] && DIFF_FULL=1    # vừa bật/tắt đảo màu ban đêm: nội dung giống nhưng màn hình phải đổi hết
   _hr=${NOW_YMDH:-x}; [ "$_hr" != "$RESYNC_H" ] && { RESYNC_H=$_hr; [ -n "$RESYNC_DONE" ] && DIFF_FULL=1; RESYNC_DONE=1; }   # mỗi giờ 1 lần: đồng bộ lại cả màn hình (không nháy)
   if [ "$DIFF_FULL" = 1 ]; then refresh 0; log "quét: toàn màn hình, không nháy (ảnh nền mới / đảo màu / đồng bộ mỗi giờ)"; return 0; fi
+  if [ "$FB_CMP" = 1 ]; then shape_refresh; return 0; fi
   fb_sums > /tmp/dash_sums_b 2>/dev/null
   _runs=$(awk -v B=$BAND -v H=$H 'NR == FNR { a[FNR] = $0; next }
       { if (a[FNR] != $0) { if (s == "") s = FNR; e = FNR } else if (s != "") { printf "%d:%d ", (s-1)*B, (e-s+1)*B; s = "" } }
@@ -440,6 +448,26 @@ diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu k
   done
   log "quét vùng đổi: $_runs${DIFF_IMGS:+ · ảnh:$DIFF_IMGS}"
   return 0
+}
+shape_refresh() { # so điểm ảnh trước/sau -> làm mới vài hình chữ nhật bám sát hình dạng phần đổi
+  dd if="$FBDEV" of=/tmp/dash_fb2 bs=$FB_STRIDE count=$H 2>/dev/null
+  _cap=$(( W * H / 3 ))
+  cmp -l /tmp/dash_fa /tmp/dash_fb2 2>/dev/null | head -n $_cap | \
+    awk -v S=$FB_STRIDE -v W=$W -v H=$H -v T=16 -v FX=${FB_FLIPX:-0} -v FY=${FB_FLIP:-0} -v MAXR=10 -v CAP=$_cap -f "$DIR/lib/fbdiff.awk" > /tmp/dash_rects
+  if grep -q FULL /tmp/dash_rects; then refresh 0; log "quét: đổi gần hết màn hình -> làm mới cả màn hình (không nháy)"; return; fi
+  _n=0; _area=0
+  while read -r _t _l _w _h; do
+    [ -n "$_h" ] || continue
+    _f=0; [ $(( _w * _h )) -ge $(( W * H / 6 )) ] && _f=1    # vùng lớn (ảnh mới…) nháy riêng vùng đó cho khỏi bóng mờ
+    refresh $_f "top=$_t,left=$_l,width=$_w,height=$_h"; _n=$(( _n + 1 )); _area=$(( _area + _w * _h ))
+  done < /tmp/dash_rects
+  for _r in $DIFF_IMGS; do
+    set -- $(echo "$_r" | tr ':' ' ')
+    _w=$3; _h=$4; [ $(( $2 + _w )) -gt $W ] && _w=$(( W - $2 )); [ $(( $1 + _h )) -gt $H ] && _h=$(( H - $1 ))
+    [ $_w -gt 0 ] && [ $_h -gt 0 ] && refresh 0 "top=$1,left=$2,width=$_w,height=$_h"
+  done
+  if [ $_n = 0 ] && [ -z "$DIFF_IMGS" ]; then log "quét: không có gì đổi"
+  else log "quét theo hình dạng: $_n vùng, $(( _area * 100 / (W * H) ))% màn hình${DIFF_IMGS:+ · ảnh:$DIFF_IMGS}"; fi
 }
 # Nháy sạch toàn màn hình định kỳ (chống bóng mờ tích luỹ): mặc định 1 lần lúc 3 giờ sáng
 clean_due() {
@@ -716,7 +744,7 @@ screen_sig() {
   _p=""; [ "$PHOTO_MODE" != fixed ] && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
   _q=""; [ "$EV_SOON" = 1 ] && _q=$(( mnow / 15 ))
   _n=0; is_night && _n=1
-  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$BATT_B$CHARGING|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
+  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
 }
 
 # Sự kiện: chỉ đọc lại file .ics khi lịch vừa tải về hoặc khoảng ngày đổi (đỡ tốn CPU mỗi lần vẽ)
@@ -826,14 +854,37 @@ clock_region_redraw() { # top left width height lệnh_vẽ...
   _rt=$(( $1 - 6 )); _rl=$(( $2 - 8 )); _rw=$(( $3 + 16 )); _rh=$(( $4 + 12 )); shift 4   # vùng xoá rộng hơn chữ số một chút
   [ $_rt -lt 0 ] && _rt=0; [ $_rl -lt 0 ] && _rl=0
   _reg="top=$_rt,left=$_rl,width=$_rw,height=$_rh"
-  box $_rt $_rl $_rw $_rh WHITE
   _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0
+  if [ "$FB_CMP" = 1 ] && [ -n "$FB_STRIDE" ] && [ "$DIFF_DRAW" != 1 ] && clock_shape "$@"; then return 0; fi
+  box $_rt $_rl $_rw $_rh WHITE
   if [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ]; then
     "$@"; refresh 1 "$_reg"                 # nháy đen riêng vùng giờ: sạch hoàn toàn
   else
     refresh 0 "$_reg"                       # bước 1: xoá trắng
     "$@"; refresh 0 "$_reg"                 # bước 2: số mới
   fi
+}
+# Đồng hồ thông minh: vẽ ngầm số mới, so điểm ảnh -> chỉ chữ số thật sự đổi mới được xoá trắng + vẽ lại
+# (11:01 -> 11:02 chỉ chớp số cuối). Cứ CLOCK_CLEAN_MIN phút thì nháy đen riêng các chữ số đổi cho sạch.
+clock_shape() { # lệnh_vẽ... (dùng _rt _rl _rw _rh _m của clock_region_redraw)
+  dd if="$FBDEV" of=/tmp/dash_ca bs=$FB_STRIDE count=$H 2>/dev/null || return 1
+  box $_rt $_rl $_rw $_rh WHITE; "$@"
+  dd if="$FBDEV" of=/tmp/dash_cb bs=$FB_STRIDE count=$H 2>/dev/null || return 1
+  cmp -l /tmp/dash_ca /tmp/dash_cb 2>/dev/null | head -n 200000 | \
+    awk -v S=$FB_STRIDE -v W=$W -v H=$H -v T=8 -v FX=${FB_FLIPX:-0} -v FY=${FB_FLIP:-0} -v MAXR=4 -v CAP=200000 -f "$DIR/lib/fbdiff.awk" > /tmp/dash_crects
+  grep -q FULL /tmp/dash_crects && return 1
+  _fl=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && _fl=1
+  while read -r _t _l _w _h; do
+    [ -n "$_h" ] || continue
+    _t=$(( _t - 2 )); _l=$(( _l - 2 )); _w=$(( _w + 4 )); _h=$(( _h + 4 ))     # chừa viền cho sạch nét cũ
+    [ $_t -lt 0 ] && _t=0; [ $_l -lt 0 ] && _l=0; [ $(( _l + _w )) -gt $W ] && _w=$(( W - _l )); [ $(( _t + _h )) -gt $H ] && _h=$(( H - _t ))
+    if [ $_fl = 1 ]; then refresh 1 "top=$_t,left=$_l,width=$_w,height=$_h"; continue; fi
+    box $_t $_l $_w $_h WHITE; refresh 0 "top=$_t,left=$_l,width=$_w,height=$_h"          # 1) xoá trắng riêng chữ số đổi
+    _mt=$_t; [ "$FB_FLIP" = 1 ] && _mt=$(( H - _t - _h ))                                  # 2) chép lại số mới vào bộ nhớ, làm mới
+    dd if=/tmp/dash_cb of="$FBDEV" bs=$FB_STRIDE skip=$_mt seek=$_mt count=$_h conv=notrunc 2>/dev/null
+    refresh 0 "top=$_t,left=$_l,width=$_w,height=$_h"
+  done < /tmp/dash_crects
+  return 0
 }
 update_clock() { # chỉ vẽ lại vùng đồng hồ (nhanh, ít tốn pin)
   if [ "$PAGE" = main ] && layout_active; then update_clock_layout; return; fi
@@ -1479,6 +1530,10 @@ while true; do
   key=$(screen_sig)
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   CLEAN_NOW=0; [ "$VIEW" = main ] && clean_due && CLEAN_NOW=1
+  BK="$BATT_B$CHARGING"                          # pin đổi mà nội dung khác y nguyên -> chỉ vẽ lại ô pin
+  if [ "$VIEW" = main ] && [ $TAPPED = 0 ] && [ -n "$LAST_BK" ] && [ "$BK" != "$LAST_BK" ] && [ "$key" = "$LAST_KEY" ]; then
+    if bat_fast "$BATT_B"; then LAST_BK=$BK; else LAST_KEY=""; fi
+  fi
   if [ "$VIEW" = status ]; then
     key=$(status_key)
     if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then
@@ -1496,7 +1551,7 @@ while true; do
     [ $full = 1 ] && CLEAN_AT=$NOWE
     if [ $full = 0 ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "${DIFF_REFRESH:-1}" = 1 ] && [ -z "$SERVER_URL" ] && [ -n "$FB_STRIDE" ] && { update_clock; diff_draw; }; then :   # giờ vẽ sạch trước (xoá trắng rồi vẽ), vùng khác chỉ quét chỗ đổi
     else draw $full; fi
-    LAST_KEY="$key"; stat_full; LAST_VIEW=$VIEW
+    LAST_KEY="$key"; LAST_BK=$BK; stat_full; LAST_VIEW=$VIEW
     [ "$VIEW" = main ] && ev_soon
     [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }
   else
