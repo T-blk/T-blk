@@ -11,7 +11,7 @@ font_path() {
     reg) echo "$FONTDIR/Inter-Regular.ttf" ;; semi) echo "$FONTDIR/Inter-SemiBold.ttf" ;;
     bold) echo "$FONTDIR/Inter-Bold.ttf" ;; black) echo "$FONTDIR/Inter-Black.ttf" ;;
     mono) echo "$FONTDIR/JBMono-Light.ttf" ;; sym) echo "$SYM" ;;
-    nbold) echo "$BOLD" ;; *) echo "$REG" ;;
+    nbold) echo "$BOLD" ;; chess) echo "$DIR/lib/chess.ttf" ;; *) echo "$REG" ;;
   esac
 }
 # có font Inter chưa (bản cũ chưa chép font thì quay về Noto)

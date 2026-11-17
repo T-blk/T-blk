@@ -209,7 +209,7 @@ render_sumenu() {
   refresh 1
 }
 sumenu_tap() { # x y
-  if [ $2 -le 80 ]; then [ $1 -le 260 ] && { VIEW=main; }; return; fi
+  if [ $2 -le 80 ]; then [ $1 -le 260 ] && { VIEW=games; }; return; fi
   if [ -s "$SU_SAVE" ] && grep -q '^DONE 0' "$SU_SAVE" && [ $2 -ge 104 ] && [ $2 -lt 200 ]; then SU_MODE=game; SU_T0=$(date +%s); return; fi
   _y=$(( SU_MENU_Y + 40 ))
   for _l in 1 2 3 4; do
@@ -223,14 +223,14 @@ sumenu_tap() { # x y
 }
 
 # ---------- Chạm ----------
-sudoku_tap() { # x y -> SU_INCR=1 nếu đã tự vẽ phần thay đổi (vòng lặp chính khỏi vẽ lại cả màn hình)
-  su_geom; SU_INCR=""
+sudoku_tap() { # x y -> GAME_INCR=1 nếu đã tự vẽ phần thay đổi (vòng lặp chính khỏi vẽ lại cả màn hình)
+  su_geom; GAME_INCR=""
   case "$SU_MODE" in
     menu) sumenu_tap "$1" "$2"; return ;;
     win) SU_MODE=menu; return ;;
   esac
   if [ $2 -le 80 ]; then
-    if [ $1 -le 300 ]; then su_leave; VIEW=main
+    if [ $1 -le 300 ]; then su_leave; VIEW=games
     elif [ $1 -ge $(( W - 180 )) ]; then su_leave; SU_MODE=menu; fi
     return
   fi
@@ -246,9 +246,9 @@ sudoku_tap() { # x y -> SU_INCR=1 nếu đã tự vẽ phần thay đổi (vòng
   elif [ $LAND = 0 ] && [ $2 -ge $TY0 ]; then
     _k=$(( ($1 - TX0) / TBW + 1 )); [ $_k -lt 1 ] && _k=1; [ $_k -gt 5 ] && _k=5; _act=$(echo "$SU_TOOLS" | sed -n "${_k}p" | cut -d'|' -f1)
   fi
-  [ -n "$_act" ] || { SU_INCR=1; return; }
+  [ -n "$_act" ] || { GAME_INCR=1; return; }
   su_engine "$_act" "$_arg"
-  su_apply; SU_INCR=1
+  su_apply; GAME_INCR=1
 }
 su_tick() { # mỗi vòng lặp khi đang chơi: cập nhật dòng thời gian (chỉ vùng chữ nhỏ)
   [ "$SU_MODE" = game ] || return 0

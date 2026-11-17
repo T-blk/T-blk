@@ -78,7 +78,7 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/pages.sh"
 . "$DIR/lib/news.sh"
 . "$DIR/lib/pomo.sh"
-. "$DIR/lib/sudoku.sh"
+. "$DIR/lib/games.sh"
 . "$DIR/lib/ui.sh"
 . "$DIR/lib/widgets.sh"
 . "$DIR/lib/layouts.sh"
@@ -885,7 +885,7 @@ DEEP_SLEEP_MIN|Khi ngủ sâu, dậy mỗi|30=30 phút;60=1 giờ;120=2 giờ
 SETTINGS_AUTO='SCHEDULE|Tự đổi giao diện theo giờ|0=Tắt;lamviec=Ngày làm việc;hoctap=Học tập;giadinh=Ở nhà;tuychinh=Tuỳ chỉnh (lich-giao-dien.txt)
 AUTO_MEET|Tự bật "Đang họp" theo lịch|0=Tắt;1=Bật
 @SCHEDVIEW|Xem lịch đang dùng…|'
-SETTINGS_DEF='@SUDOKU|Chơi Sudoku…|
+SETTINGS_DEF='@GAMES|Trò chơi (Sudoku, cờ vua, cờ vây)…|
 @LOOK|Giao diện…|
 @POWER|Pin & đèn…|
 @AUTO|Tự động theo giờ…|
@@ -985,7 +985,7 @@ settings_tap() { # x y
   key=${line%%|*}; opts=${line##*|}
   case "$key" in
     @LOOK) SET_GROUP=look; return ;; @POWER) SET_GROUP=power; return ;; @AUTO) SET_GROUP=auto; return ;;
-    @SUDOKU) su_open; return ;;
+    @GAMES) VIEW=games; return ;;
     @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;; @CALIB) VIEW=calib; return ;;
     @RECV) recv_start; VIEW=recv; return ;;
     @SLEEPTEST) deep_test; return ;;
@@ -1264,7 +1264,7 @@ draw() {
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; calib) render_calib ;; update) render_update ;; choose) render_choose ;;
     reader) render_reader ;; status) render_status ;; stpick) render_stpick ;;
-    diag) render_diag ;; sudoku) render_sudoku ;; remote) render_remote ;; msg) render_msg ;; recv) render_recv ;;
+    diag) render_diag ;; sudoku) render_sudoku ;; chess) render_chess ;; go) render_go ;; games) render_games ;; remote) render_remote ;; msg) render_msg ;; recv) render_recv ;;
     *) case "$PAGE" in tin) render_tin "$1" ;; bloc) render_bloc "$1" ;; dem) render_dem "$1" ;; pomo) render_pomo "$1" ;; news) render_news "$1" ;; *) render_main "$1" ;; esac ;;
   esac
 }
@@ -1314,6 +1314,7 @@ handle_tap() {
     reader) reader_tap $x $y; return ;;
     status) status_tap $x $y; return ;;
     sudoku) sudoku_tap $x $y; return ;;
+    chess) chess_tap $x $y; return ;; go) go_tap $x $y; return ;; games) games_tap $x $y; return ;;
     diag) diag_tap $x $y; return ;; remote) remote_tap $x $y; return ;; msg) msg_tap $x $y; return ;; recv) recv_tap $x $y; return ;;
     stpick) stpick_tap $x $y; return ;;
     choose) choose_tap $x $y; return ;;
@@ -1369,7 +1370,7 @@ handle_tap() {
 idle_reset() {
   [ $LAST_TOUCH = 0 ] && return
   case "$VIEW" in status) return ;; esac
-  lim=$IDLE_RESET_MIN; [ "$VIEW" = reader ] && lim=15; [ "$VIEW" = sudoku ] && lim=30
+  lim=$IDLE_RESET_MIN; [ "$VIEW" = reader ] && lim=15; case "$VIEW" in sudoku|chess|go|games) lim=30 ;; esac
   [ $(( $(date +%s) - LAST_TOUCH )) -ge $(( lim * 60 )) ] && [ "$VIEW" = sudoku ] && su_leave
   [ $(( $(date +%s) - LAST_TOUCH )) -ge $(( lim * 60 )) ] || return
   MOFF=0; EVPAGE=0; LAST_TOUCH=0; [ "$VIEW" != main ] && VIEW=main; LAST_KEY=""
@@ -1483,8 +1484,8 @@ while true; do
     if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then
       { [ $TAPPED = 0 ] && [ "$LAST_VIEW" = status ] && [ "${DIFF_REFRESH:-1}" = 1 ] && diff_draw; } || draw 0
       LAST_KEY="$key"; LAST_VIEW=$VIEW; [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }; else status_tick; fi
-  elif [ "$VIEW" = sudoku ] && [ "$LAST_VIEW" = sudoku ] && { [ -n "$SU_INCR" ] || [ $TAPPED = 0 ]; }; then
-    SU_INCR=""; [ $TAPPED = 0 ] && su_tick                 # Sudoku tự vẽ phần đổi khi chạm; không chạm: chỉ cập nhật đồng hồ
+  elif { [ "$VIEW" = sudoku ] || [ "$VIEW" = chess ] || [ "$VIEW" = go ]; } && [ "$VIEW" = "$LAST_VIEW" ] && { [ -n "$GAME_INCR" ] || [ $TAPPED = 0 ]; }; then
+    GAME_INCR=""; [ $TAPPED = 0 ] && [ "$VIEW" = sudoku ] && su_tick                 # Sudoku tự vẽ phần đổi khi chạm; không chạm: chỉ cập nhật đồng hồ
   elif [ "$VIEW" != main ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "$VIEW" != confirm ]; then
     :                                                      # màn hình phụ, không chạm: giữ nguyên, không quét
   elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ $CLEAN_NOW = 1 ] || [ -n "$SERVER_URL" ]; then

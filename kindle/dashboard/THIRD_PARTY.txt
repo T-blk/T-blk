@@ -13,3 +13,6 @@ clockm/, ring/, ui/bg_the.png  Sinh bởi tools/make_modern_assets.py.
 ui/*_STYLE_*.png, ui/LAYOUT_*.png  Ảnh xem trước, chụp từ chính giao diện.
 ui/status/*.png, ui/flora_div.png, ornaments/{hoala,hoanhai,ladeo}_*  Tự vẽ bằng tools/make_status_art.py.
 remote_srv.sh, lib/remote.html  Máy chủ web điều khiển từ điện thoại (viết riêng, chạy bằng busybox nc).
+
+lib/chess.ttf — hình quân cờ (U+2654–U+265F) cắt từ phông DejaVu Sans.
+  DejaVu fonts: Bitstream Vera / Arev license (tự do dùng, sửa, phân phối). https://dejavu-fonts.github.io/License.html

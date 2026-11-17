@@ -1,8 +1,8 @@
-version=2026.11.17.29
-sha256=5e79ca4d79f0effa88b340ad2c257858ce63df2e3ab6d821be27ab3d57482c43
-size=4816105
-core_sha=bc4d2bca94be512d76fbf4fd6fcf03ff06846e8cef69375653e1aa8f64222f0b
-core_size=386252
+version=2026.11.17.30
+sha256=54af35cbcbeac2410220cda16cade7d0992701946b33b183b859e341195feaeb
+size=4840172
+core_sha=f382db300a7bdb06811c3881c27931d14ff16b61eb5cf97d888c027e47369d06
+core_size=411051
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Thêm Sudoku: 4 độ khó, ghi chú, xoá, hoàn tác, gợi ý, kiểm tra lỗi, đồng hồ, tự lưu ván, kỷ lục
+notes=Thêm Cờ vua (máy 3 mức hoặc 2 người) và Cờ vây (9/13/19, tính điểm); gom vào mục Trò chơi
