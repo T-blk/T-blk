@@ -158,12 +158,24 @@ def status_sources(srcdirs):
                     print(f"bỏ qua {b}: tên phải bắt đầu bằng một mã {STATUS_IDS}")
 
 
+def trim_white(img, pad=0.04):
+    """Cắt viền trắng/nhạt thừa quanh nhân vật (sticker thường có viền rộng) để hình to rõ trên Kindle."""
+    from PIL import ImageChops
+    diff = ImageChops.difference(img, Image.new("L", img.size, 255)).point(lambda p: 255 if p > 24 else 0)
+    bb = diff.getbbox()
+    if not bb:
+        return img
+    w, h = bb[2] - bb[0], bb[3] - bb[1]
+    m = int(max(w, h) * pad)
+    return img.crop((max(0, bb[0] - m), max(0, bb[1] - m), min(img.width, bb[2] + m), min(img.height, bb[3] + m)))
+
+
 def convert_status(srcdirs, dst, previews=None):
     n = 0
     cnt = {}
     for sid, src in status_sources(srcdirs):
         try:
-            img = eink(ImageOps.exif_transpose(Image.open(src)).convert("L"))
+            img = eink(trim_white(ImageOps.exif_transpose(Image.open(src)).convert("L")))
         except Exception as e:
             print(f"bỏ qua {src}: {e}")
             continue
@@ -231,9 +243,6 @@ def preview_status(sid, path):
     y = max(560, iy + p.height + 34)
     _center(d, y, STATUS_NAMES[sid], _font("Inter-SemiBold.ttf", 60), 0)
     _center(d, y + 92, hook_for(sid), _font("Inter-Light.ttf", 36), 102)
-    fd = os.path.join(DASH, "ui", "flora_div.png")
-    if os.path.exists(fd):
-        im.paste(Image.open(fd), ((W - 420) // 2, H - 120))
     _center(d, H - 64, "Chạm để quay lại  ·  vuốt ngang: câu khác", _font("Inter-Regular.ttf", 18), 153)
     return im
 
