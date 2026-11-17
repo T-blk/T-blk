@@ -40,7 +40,18 @@ if [ "$1" != "--once" ]; then
     rm -f "$FW_FLAG"
     _lo=$(lipc-get-prop com.lab126.winmgr orientationLock 2>/dev/null); [ -n "$_lo" ] || _lo=U
     echo "$_lo" > /tmp/dash_lock_orig; _ln=$_lo
-    if [ "$_w" != "$_lo" ]; then lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null && _ln=$_w; sleep 3; fi
+    # Học góc xoay "đứng thẳng" NGAY LÚC NÀY (hướng vừa đọc từ Kindle là đúng), TRƯỚC khi ra lệnh xoay
+    _rota() { "$FB" -e 2>/dev/null | tr ';' '\n' | sed -n 's/^currentRota=//p' | head -1; }
+    _r0=$(_rota)
+    case "$_lo" in D) _o=2 ;; R) _o=1 ;; L) _o=3 ;; *) _o=0 ;; esac
+    case "$_r0" in [0-3]) echo $(( (_r0 - _o + 4) % 4 )) > "$DIR/.rota_up2" ;; esac
+    rm -f "$DIR/.rota_up"                                   # giá trị bản .11 có thể đã học sai
+    if [ "$_w" != "$_lo" ]; then
+      lipc-set-prop com.lab126.winmgr orientationLock "$_w" 2>/dev/null; sleep 3
+      _r1=$(_rota)
+      # chỉ coi là đã xoay khi màn hình xoay thật
+      if [ -z "$_r0" ] || [ "$_r1" != "$_r0" ]; then _ln=$_w; else _ln=$_lo; fi
+    fi
     fw_pause
     EARLY=fresh
   fi
@@ -267,12 +278,8 @@ fb_geom() { # đọc kích thước + góc xoay THẬT từ FBInk
 # ROTA_UP = góc xoay khi màn hình đứng thẳng (lưu trong .rota_up). Lệch 0/2 = dọc/lộn ngược, 1/3 = ngang.
 rota_sync() {
   case "$CUR_ROTA" in [0-3]) ;; *) TOUCH_LOCK=""; return ;; esac
-  [ -n "$ROTA_UP" ] || ROTA_UP=$(cat "$DIR/.rota_up" 2>/dev/null)
-  if [ -z "$ROTA_UP" ]; then
-    [ "$EARLY" = fresh ] || { TOUCH_LOCK=""; return; }       # chỉ học khi vừa đọc hướng thật từ Kindle
-    case "$LOCK_NOW" in D) o=2 ;; R) o=1 ;; L) o=3 ;; *) o=0 ;; esac
-    ROTA_UP=$(( (CUR_ROTA - o + 4) % 4 )); echo "$ROTA_UP" > "$DIR/.rota_up"
-  fi
+  ROTA_UP=$(cat "$DIR/.rota_up2" 2>/dev/null)                # học ở phần khởi động (trước khi xoay)
+  case "$ROTA_UP" in [0-3]) ;; *) TOUCH_LOCK=""; return ;; esac
   case $(( (CUR_ROTA - ROTA_UP + 4) % 4 )) in 0) TOUCH_LOCK=U ;; 2) TOUCH_LOCK=D ;; 1) TOUCH_LOCK=R ;; 3) TOUCH_LOCK=L ;; esac
 }
 W=758; H=1024

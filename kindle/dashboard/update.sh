@@ -12,7 +12,7 @@ LOG="$US/dashboard_update.log"
 NEW="$US/.dash_ota_new"
 FB=/tmp/dash_fbink; [ -x "$FB" ] || { cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"; }
 BOLD="$DIR/fonts/NotoSans-Bold.ttf"
-KEEP_FILES="dash.conf settings.conf todo.txt AUTOSTART battery.log lich-giao-dien.txt .rota_up"
+KEEP_FILES="dash.conf settings.conf todo.txt AUTOSTART battery.log lich-giao-dien.txt .rota_up2"
 KEEP_DIRS="photos clock"
 ASSET_DIRS="fonts bin ornaments clockm ring"   # tài nguyên lớn: chỉ tải lại khi bản mới có thay đổi
 

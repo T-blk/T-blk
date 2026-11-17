@@ -1,8 +1,8 @@
-version=2026.11.17.11
-sha256=47ade9ec0ae50704b5045b0ab20aaf7794f8e9a524760117bd16a64b0d4a543a
-size=4870808
-core_sha=6909aceac7d74c129afbe98a376ec49bceae72384b378bad01d4396cca48b0b4
-core_size=441797
+version=2026.11.17.12
+sha256=51a552b158e6991ca6bed7dfa741cecc4641c70fbe9aa7eccc0170d24fb7dc9f
+size=4870767
+core_sha=892ac483c05230093da63ee524f5d49f8fcdaf93c1872db7d63e1cbe213fb9c5
+core_size=441934
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa: sau khi xoay lỗi bấm gì cũng không ăn (toạ độ chạm nay theo chiều thật của màn hình); không xoay được thì giữ chiều cũ và báo; biểu tượng chuyển trang dễ hiểu hơn
+notes=Sửa: chạm không ăn sau khi thử xoay màn hình (học góc đứng thẳng trước khi xoay, chỉ coi là đã xoay khi màn hình xoay thật)
