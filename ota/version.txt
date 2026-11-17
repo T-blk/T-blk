@@ -1,8 +1,8 @@
-version=2026.11.17.24
-sha256=4e6305d8002235c4dc88fcd7136e24ddd895d174782ddda05c3720e57c5d1c7a
-size=4771542
-core_sha=1f33918f86ff834d072f0b513c9006447080717f2d0e9480c3edf560a6953d9b
-core_size=341960
+version=2026.11.17.25
+sha256=a6e179b9f8991b6e71c41d1be13ae507f242ebb56311ce40c60e5881682c611f
+size=4771710
+core_sha=155e90f671c0b5f0036e8ee82721722d2994b4a0209db56972c57a3989a97d21
+core_size=342174
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa lỗi mất chữ (ngày, thời tiết, lịch tháng) khi đổi ảnh ở bố cục Thẻ; quét đúng vùng khi để lộn ngược
+notes=Rà lại cơ chế quét vùng: đảo màu ban đêm, đồng bộ lại mỗi giờ (không nháy), ảnh nền theo phiên bản

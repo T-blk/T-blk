@@ -379,6 +379,7 @@ refresh() { # $1 = 1 nháy đen; $2 = vùng (top=..,left=..,width=..,height=..)
   [ "$DIFF_DRAW" = 1 ] && return 0          # đang vẽ ngầm: chỉ ghi vào bộ nhớ màn hình, quét sau (diff_draw)
   inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && inv="-H"
   fl=""; [ "$1" = 1 ] && fl="-f"
+  [ -z "$2" ] && SHOWN_INV="$inv"            # chế độ đảo màu đang hiển thị (để biết khi nào phải quét lại hết)
   "$FB" -q $fl $inv -s $2 >/dev/null 2>&1
 }
 # ---------- Chỉ quét vùng thật sự thay đổi ----------
@@ -414,7 +415,10 @@ diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu k
   [ -n "$FB_STRIDE" ] && [ -r "$FBDEV" ] || return 1
   fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1
   DIFF_FULL=0; DIFF_IMGS=""; DIFF_DRAW=1; draw 0; DIFF_DRAW=0
-  if [ "$DIFF_FULL" = 1 ]; then refresh 0; log "quét: toàn màn hình (vừa vẽ lại ảnh nền)"; return 0; fi
+  _inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && _inv="-H"
+  [ "$_inv" != "$SHOWN_INV" ] && DIFF_FULL=1    # vừa bật/tắt đảo màu ban đêm: nội dung giống nhưng màn hình phải đổi hết
+  _hr=${NOW_YMDH:-x}; [ "$_hr" != "$RESYNC_H" ] && { RESYNC_H=$_hr; [ -n "$RESYNC_DONE" ] && DIFF_FULL=1; RESYNC_DONE=1; }   # mỗi giờ 1 lần: đồng bộ lại cả màn hình (không nháy)
+  if [ "$DIFF_FULL" = 1 ]; then refresh 0; log "quét: toàn màn hình, không nháy (ảnh nền mới / đảo màu / đồng bộ mỗi giờ)"; return 0; fi
   fb_sums > /tmp/dash_sums_b 2>/dev/null
   _runs=$(awk -v B=$BAND -v H=$H 'NR == FNR { a[FNR] = $0; next }
       { if (a[FNR] != $0) { if (s == "") s = FNR; e = FNR } else if (s != "") { printf "%d:%d ", (s-1)*B, (e-s+1)*B; s = "" } }
@@ -429,7 +433,9 @@ diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu k
     refresh $_f "top=$_t,left=0,width=$W,height=$_h"
   done
   for _r in $DIFF_IMGS; do                   # vùng ảnh (eips) quét lại lần cuối cho đủ chữ/khung phủ lên
-    set -- $(echo "$_r" | tr ':' ' '); [ "$3" -gt 0 ] && [ "$4" -gt 0 ] && refresh 0 "top=$1,left=$2,width=$3,height=$4"
+    set -- $(echo "$_r" | tr ':' ' ')
+    _w=$3; _h=$4; [ $(( $2 + _w )) -gt $W ] && _w=$(( W - $2 )); [ $(( $1 + _h )) -gt $H ] && _h=$(( H - $1 ))
+    [ $_w -gt 0 ] && [ $_h -gt 0 ] && refresh 0 "top=$1,left=$2,width=$_w,height=$_h"
   done
   log "quét vùng đổi: $_runs${DIFF_IMGS:+ · ảnh:$DIFF_IMGS}"
   return 0
@@ -448,7 +454,7 @@ image() {
   # Nên lưu bản sao bộ nhớ màn hình ngay sau khi vẽ nền; lần sau chép lại bằng dd (không làm mới gì cả).
   case "$2$3:$1" in 00:*/ui/bg_*)
     if [ -n "$FB_STRIDE" ]; then
-      _k="$1|$CUR_ROTA|$W|$FB_STRIDE"
+      _k="$1|$CUR_ROTA|$W|$FB_STRIDE|$DASH_VER"
       if [ "$DIFF_DRAW" = 1 ] && [ -s /tmp/dash_bg.raw ] && [ "$_k" = "$(cat /tmp/dash_bg.key 2>/dev/null)" ]; then
         dd if=/tmp/dash_bg.raw of="$FBDEV" bs=$FB_STRIDE 2>/dev/null && return 0
       fi
