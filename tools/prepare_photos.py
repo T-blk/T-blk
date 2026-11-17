@@ -173,6 +173,24 @@ def trim_white(img, pad=0.04):
 def convert_status(srcdirs, dst, previews=None):
     n = 0
     cnt = {}
+    for sd in srcdirs:                      # tên / câu hook riêng đi kèm gói ảnh
+        for t in ("names.txt", "hooks.txt"):
+            f = os.path.join(sd, "2-trang-thai", t)
+            if os.path.isfile(f):
+                os.makedirs(os.path.join(dst, "status"), exist_ok=True)
+                with open(f, encoding="utf-8") as a, open(os.path.join(dst, "status", t), "w", encoding="utf-8") as b:
+                    b.write(a.read())
+                if t == "names.txt":
+                    for ln in open(f, encoding="utf-8"):
+                        p = ln.strip().split("|")
+                        if len(p) >= 2 and p[0] in STATUS_NAMES:
+                            STATUS_NAMES[p[0]] = p[1]
+                if t == "hooks.txt":
+                    HOOKS_OVERRIDE.clear()
+                    for ln in open(f, encoding="utf-8"):
+                        p = ln.strip().split("|", 1)
+                        if len(p) == 2 and p[0] not in HOOKS_OVERRIDE:
+                            HOOKS_OVERRIDE[p[0]] = p[1]
     for sid, src in status_sources(srcdirs):
         try:
             img = eink(trim_white(ImageOps.exif_transpose(Image.open(src)).convert("L")))
@@ -224,7 +242,12 @@ def _center(d, y, text, f, fill, W=758, maxw=678):
         y += int(f.size * 1.25)
 
 
+HOOKS_OVERRIDE = {}
+
+
 def hook_for(sid):
+    if sid in HOOKS_OVERRIDE:
+        return HOOKS_OVERRIDE[sid]
     try:
         for ln in open(os.path.join(DASH, "lib", "hooks.txt"), encoding="utf-8"):
             if ln.startswith(sid + "|"):

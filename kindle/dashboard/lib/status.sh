@@ -13,9 +13,23 @@ ngutrua|Ngủ trưa
 vengay|Tan làm rồi'
 ST_ID=""; ST_START=0; ST_SEED=0; ST_HOFF=0
 
-status_name() { echo "$STATUS_LIST" | grep "^$1|" | cut -d'|' -f2; }
-status_hooks() { grep "^$1|" "$DIR/lib/hooks.txt" 2>/dev/null | cut -d'|' -f2-; }
-status_away() { case "$1" in roidi|toilet|antrua|ngutrua|vengay) return 0 ;; esac; return 1; }
+# Gói ảnh riêng có thể đổi tên / câu hook / "vắng mặt" của từng ô:
+#   photos/status/names.txt  ->  mã|Tên hiển thị|vắng(0/1)      photos/status/hooks.txt -> mã|câu
+ST_NAMES="$DIR/photos/status/names.txt"; ST_HOOKS="$DIR/photos/status/hooks.txt"
+status_name() {
+  n=$(grep "^$1|" "$ST_NAMES" 2>/dev/null | head -1 | cut -d'|' -f2)
+  [ -n "$n" ] && { echo "$n"; return; }
+  echo "$STATUS_LIST" | grep "^$1|" | cut -d'|' -f2
+}
+status_hooks() {
+  grep -q "^$1|" "$ST_HOOKS" 2>/dev/null && { grep "^$1|" "$ST_HOOKS" | cut -d'|' -f2-; return; }
+  grep "^$1|" "$DIR/lib/hooks.txt" 2>/dev/null | cut -d'|' -f2-
+}
+status_away() {
+  a=$(grep "^$1|" "$ST_NAMES" 2>/dev/null | head -1 | cut -d'|' -f3)
+  [ -n "$a" ] && { [ "$a" = 1 ]; return; }
+  case "$1" in roidi|toilet|antrua|ngutrua|vengay) return 0 ;; esac; return 1
+}
 
 status_enter() { # mã
   ST_ID=$1; ST_START=$(date +%s); ST_HM=$(date +%H:%M); ST_SEED=$(( ST_START / 7 )); ST_HOFF=0
@@ -82,6 +96,7 @@ render_stpick() {
   box 72 40 $(( W - 80 )) 2
   i=0
   echo "$STATUS_LIST" | while IFS='|' read -r id nm; do
+    nm=$(status_name "$id")
     x=$(( 20 + (i % 3) * SPW )); y=$(( SPY0 + (i / 3) * SPH ))
     frame $(( y + 6 )) $(( x + 6 )) $(( SPW - 12 )) $(( SPH - 12 )) 1
     th=$(ls "$DIR/photos/status/thumb/${id}_"*.png 2>/dev/null | head -1)   # ảnh riêng của bạn (nếu có)

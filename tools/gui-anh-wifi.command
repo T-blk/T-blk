@@ -37,7 +37,7 @@ else
   python3 "$HERE/prepare_photos.py" "$SRC" "$WORK/photos" --preview "$SRC/_xem-truoc" || fail "Chuẩn bị ảnh thất bại"
 fi
 
-FILES=$(cd "$WORK/photos" && find . -type f \( -name '*.png' -o -name 'captions.txt' \) | sed 's#^\./##')
+FILES=$(cd "$WORK/photos" && find . -type f \( -name '*.png' -o -name '*.txt' \) | sed 's#^\./##')
 N=$(echo "$FILES" | grep -c .); [ "$N" -gt 0 ] || fail "Không có ảnh để gửi"
 say "Gửi $N file sang Kindle ($BASE) …"
 if [ $MODE = status ]; then curl -s -m 10 "$BASE/photoclear?k=$PIN&dir=status" | grep -q true || fail "Sai mã PIN?"

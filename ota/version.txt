@@ -1,8 +1,8 @@
-version=2026.11.17.18
-sha256=4a83b5e58969a448ca1f831a17b21cf7ebda583175fd857b8683f8ded971ff4f
-size=4768630
-core_sha=eb5af501f7957960374a42ca3988e570f468fb5d16d287664e1625a90bd2ce2d
-core_size=337914
+version=2026.11.17.19
+sha256=0750d02f0dc8108d358ff701a1575daa8b87fb485dae028b4c6cdb0b8d909a73
+size=4768818
+core_sha=fb736a8d667006177bba2b93f34e2edf56c995ba915d0943857a16a4ebee34ea
+core_size=338084
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa đồng hồ còn dính số cũ ở mép phải (đo đúng nét chữ đang vẽ, vùng xoá rộng hơn)
+notes=Gói ảnh riêng đổi được tên ô và câu hook của từng trạng thái
