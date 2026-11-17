@@ -36,6 +36,11 @@ handle() {
   route=${path%%\?*}; q=""; case "$path" in *\?*) q=${path#*\?} ;; esac
   k=$(qget "$q" k)
   case "$route" in
+    /hello)   # dò tìm trong mạng (không cần PIN): ứng dụng quét dải IP và gọi /hello
+      reply "200 OK" application/json "{\"app\":\"kindle-dashboard\",\"api\":1,\"ver\":\"$(cat "$DIR/VERSION" 2>/dev/null)\",\"port\":$PORT,\"auth\":\"pin\"}" ;;
+    /settings)
+      [ "$k" = "$KEY" ] || { reply "403 Forbidden" application/json '{"ok":false}'; return; }
+      reply "200 OK" application/json "$(cat /tmp/dash_settings.json 2>/dev/null || echo '{"ok":false}')" ;;
     /) if [ "$k" = "$KEY" ]; then reply "200 OK" text/html "$(sed "s/__KEY__/$KEY/g" "$DIR/lib/remote.html")"
        else reply "200 OK" text/html '<meta name=viewport content="width=device-width"><body style="font:20px sans-serif;padding:24px"><form>Mã PIN trên Kindle:<br><input name=k inputmode=numeric style="font-size:28px;width:6em"> <button style="font-size:24px">Mở</button></form>'; fi ;;
     /api)
@@ -48,12 +53,14 @@ handle() {
       a=$(qget "$q" a); v=$(urldec "$(qget "$q" v)")
       case "$a" in
         status|back|layout|page|light|msg|refresh|home) ;;
+        set) sk=$(qget "$q" key); case "$sk" in ""|*[!A-Z_]*) reply "400 Bad Request" application/json '{"ok":false,"error":"key"}'; return ;; esac ;;
         *) reply "400 Bad Request" application/json '{"ok":false}'; return ;;
       esac
       v=$(printf '%s' "$v" | tr -d '\r' | tr '\n' ' ' | cut -c1-400)
       [ "$a" = msg ] && { printf '%s\n' "$v" > /tmp/dash_msg; v=""; }
       case "$v" in *[!a-z0-9+-]*) v="" ;; esac       # tham số khác lời nhắn: chỉ chữ thường/số
-      echo "C $a $v" >> /tmp/dash_taps
+      if [ "$a" = set ]; then [ -n "$v" ] || { reply "400 Bad Request" application/json '{"ok":false,"error":"value"}'; return; }; echo "C set $sk $v" >> /tmp/dash_taps
+      else echo "C $a $v" >> /tmp/dash_taps; fi
       kill -USR1 "$(cat /tmp/dash.pid 2>/dev/null)" 2>/dev/null
       log "lệnh từ điện thoại: $a $v"
       reply "200 OK" application/json '{"ok":true}' ;;

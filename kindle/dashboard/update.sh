@@ -17,6 +17,12 @@ KEEP_DIRS="photos clock"
 ASSET_DIRS="fonts bin ornaments clockm ring"   # tài nguyên lớn: chỉ tải lại khi bản mới có thay đổi
 
 log() { echo "$(date '+%F %T') [update] $*" >> "$LOG"; }
+[ -f "$DIR/lib/fw.sh" ] && . "$DIR/lib/fw.sh"
+ui_back() { # dashboard không chạy được -> trả lại giao diện Kindle đầy đủ
+  dash_running && return 0
+  command -v fw_resume >/dev/null 2>&1 && fw_resume || { status framework 2>/dev/null | grep -q running || start framework 2>/dev/null; }
+  log "trả lại giao diện Kindle"
+}
 show() { [ "$QUIET" = 1 ] || "$FB" -q -c -m -M -t "regular=$BOLD,px=34" "$*" >/dev/null 2>&1; log "$*"; }
 fetch() { curl -s -k -L -m 180 -o "$2" "$1" 2>/dev/null && [ -s "$2" ] || wget -q -T 180 -O "$2" "$1"; }
 newer() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a > b) }'; }   # so sánh chuỗi yyyy.mm.dd.nn
@@ -51,7 +57,7 @@ stop_dash() {
 start_dash() { rm -f /tmp/dash_stop; nohup sh "$DIR/dash.sh" > "$DIR/dash.log" 2>&1 & }
 healthy() { # chờ bản mới vẽ được màn hình chính
   i=0; while [ $i -lt ${HEALTH_TIMEOUT:-180} ]; do
-    grep -q "render main: done" "$DIR/dash.log" 2>/dev/null && return 0
+    grep -qE "first draw ok|render main: done" "$DIR/dash.log" 2>/dev/null && return 0
     sleep 2; i=$((i + 2)); done
   return 1
 }
@@ -87,7 +93,7 @@ get_pkg() { # tên sha size -> /tmp/ota_<tên>.tgz đã kiểm tra
 
 install() {
   r=$(check); log "check: $r"
-  case "$r" in available*) ;; uptodate*) show "Đang dùng bản mới nhất ($(cur))"; return 0 ;; *) show "Lỗi: ${r#error }"; return 1 ;; esac
+  case "$r" in available*) ;; uptodate*) show "Đang dùng bản mới nhất ($(cur))"; return 1 ;; *) show "Lỗi: ${r#error }"; return 1 ;; esac
   ver=$(field version); csha=$(field core_sha); asha=$(field assets_sha)
   REUSE=0
   if [ -n "$csha" ]; then                                   # gói tách: thường chỉ tải phần mã (~vài trăm KB)
@@ -135,16 +141,23 @@ install() {
     start_dash
     if healthy; then log "new version healthy"; return 0; fi
     log "new version did not start -> rollback"
-    rollback; return 1
+    rollback
+    healthy || ui_back
+    return 1
   fi
   show "Đã cài bản $ver. Bấm Dashboard - Bat để chạy."
+  ui_back
 }
 
 QUIET=0; RESTART=0
 for a in "$@"; do case "$a" in --quiet) QUIET=1 ;; --restart) RESTART=1 ;; esac; done
 case "$1" in
   --check) QUIET=1; check ;;
-  --install) install ;;
+  --install)
+    if ! install && [ "$RESTART" = 1 ] && ! dash_running; then
+      # tải/cài lỗi: chạy lại bản đang có; vẫn không lên thì trả giao diện Kindle
+      sleep 3; start_dash; healthy || ui_back
+    fi ;;
   --rollback) rollback ;;
   *) echo "Dùng: sh update.sh --check | --install [--restart] | --rollback [--restart]" ;;
 esac

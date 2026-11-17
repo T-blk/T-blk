@@ -17,7 +17,7 @@ remote_stop() {
   iptables -D INPUT -p tcp --dport "$REMOTE_PORT" -j ACCEPT 2>/dev/null
   rm -f /tmp/dash_http.fifo
 }
-remote_init() { [ "$REMOTE" = 1 ] && remote_start; }
+remote_init() { [ "$REMOTE" = 1 ] && { remote_start; settings_json; }; }
 
 # Trạng thái cho trang web (ghi vào /tmp, không ghi thẻ nhớ)
 remote_state() {
@@ -38,9 +38,38 @@ handle_cmd() { # hành_động tham_số
     light) [ "$2" = up ] && LADJ=$((LADJ + 2)); [ "$2" = down ] && LADJ=$((LADJ - 2)); LIGHT_NOW=""; set_light ;;
     msg) MSG_TEXT=$(cat /tmp/dash_msg 2>/dev/null); MSG_TIME=$(date +%H:%M); [ -n "$MSG_TEXT" ] && { MSG_PREV=$VIEW; VIEW=msg; } ;;
     refresh) LAST_KEY="" ;;
+    set) setting_apply "$2" "$3" ;;
     home) go_home "điện thoại" ;;
   esac
   remote_state
+}
+
+# Đổi một cài đặt từ điện thoại: chỉ nhận khoá + giá trị có trong danh sách Cài đặt
+all_settings() { printf '%s\n%s\n%s\n%s\n' "$SETTINGS_LOOK" "$SETTINGS_POWER" "$SETTINGS_AUTO" "$SETTINGS_DEF" | grep -v '^@'; }
+setting_apply() { # KEY VALUE
+  line=$(all_settings | grep "^$1|" | head -1); [ -n "$line" ] || { log "remote set: khoá lạ $1"; return 1; }
+  echo "$line" | cut -d'|' -f3 | tr ';' '\n' | cut -d= -f1 | grep -qx "$2" || { log "remote set: giá trị lạ $1=$2"; return 1; }
+  old=$(setting_value "$1"); [ "$old" = "$2" ] && return 0
+  save_setting "$1" "$2"; eval "$1=\"$2\""
+  case "$1" in
+    LAYOUT) for kk in CLOCK_STYLE EVENT_STYLE PHOTO_STYLE; do save_setting $kk auto; eval "$kk=auto"; done; PAGE=main; VIEW=main; MOFF=0 ;;
+    ORIENTATION) PREV_ORIENT="$old"; reorient "$2"; VIEW=main ;;
+    REMOTE) [ "$2" = 0 ] && remote_stop ;;
+    LIGHT_DAY|LIGHT_NIGHT) LIGHT_NOW=""; set_light ;;
+  esac
+  LAST_KEY=""; settings_json
+}
+settings_json() { # -> /tmp/dash_settings.json cho ứng dụng điện thoại
+  [ "$REMOTE" = 1 ] || return 0
+  for g in look power auto main; do
+    case $g in look) d="$SETTINGS_LOOK" ;; power) d="$SETTINGS_POWER" ;; auto) d="$SETTINGS_AUTO" ;; main) d="$SETTINGS_DEF" ;; esac
+    echo "$d" | grep -v '^@' | while IFS='|' read -r key label opts; do printf '%s|%s|%s|%s|%s\n' "$g" "$key" "$label" "$(setting_value "$key")" "$opts"; done
+  done | awk -F'|' 'function q(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
+    BEGIN { printf "{\"ok\":true,\"settings\":[" }
+    { n = split($5, o, ";"); opts = ""
+      for (i = 1; i <= n; i++) { split(o[i], kv, "="); v = kv[1]; t = substr(o[i], length(v) + 2); opts = opts (i > 1 ? "," : "") "{\"value\":" q(v) ",\"label\":" q(t) "}" }
+      printf "%s{\"group\":%s,\"key\":%s,\"label\":%s,\"value\":%s,\"options\":[%s]}", (NR > 1 ? "," : ""), q($1), q($2), q($3), q($4), opts }
+    END { print "]}" }' > /tmp/dash_settings.json.tmp && mv /tmp/dash_settings.json.tmp /tmp/dash_settings.json
 }
 
 render_msg() {
@@ -86,6 +115,6 @@ remote_tap() { # x y
   if [ $2 -le 80 ]; then VIEW=settings; return; fi
   if [ $2 -ge 100 ] && [ $2 -le 190 ]; then
     if [ "$REMOTE" = 1 ]; then REMOTE=0; remote_stop; else REMOTE=1; remote_start; fi
-    save_setting REMOTE "$REMOTE"
+    save_setting REMOTE "$REMOTE"; settings_json
   fi
 }

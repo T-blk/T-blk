@@ -17,7 +17,7 @@ load_conf() {
   : "${CLOCK_STYLE:=auto}" "${DATE_STYLE:=dai}" "${SHOW_LUNAR:=1}" "${TODAY_STYLE:=vong}" "${WEEK_START:=1}"
   : "${ORNAMENT:=auto}" "${DEFAULT_PAGE:=main}" "${NIGHT_PAGE:=dem}" "${POMO_FOCUS:=25}" "${POMO_BREAK:=5}"
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
-  : "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
+  : "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
   : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_REFRESH_EVERY:=20}" "${LOW_BATTERY:=5}"
 }
@@ -240,7 +240,7 @@ reorient() { # $1 = doc|nguoc|ngangtrai|ngangphai
   want=$(lock_for "$1")
   if fw_paused; then                     # nhanh: cho giao diện chạy vài giây để đổi hướng
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang xoay màn hình…" >/dev/null 2>&1
-    fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; log "orientationLock -> $want (fast)"
+    fw_thaw_do set_lock "$want" && LOCK_NOW="$want"; echo "$LOCK_NOW" > /tmp/dash_lock_now; log "orientationLock -> $want (fast)"
     sleep 1; lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null; fb_geom
     return
   fi
@@ -642,6 +642,7 @@ SHOW_LUNAR|Âm lịch|1=Bật;0=Tắt
 TODAY_STYLE|Hôm nay (Cổ điển)|vong=Vòng tròn;khung=Khung vuông;gach=Gạch chân;den=Tròn đen (thử)
 WEEK_START|Tuần bắt đầu|1=Thứ Hai;0=Chủ Nhật
 WEATHER_ICON|Biểu tượng thời tiết|1=Bật;0=Tắt
+CONTRAST|Độ tương phản|cao=Cao (rõ trên e-ink);vua=Vừa;nhe=Nhẹ (mảnh như bản thiết kế)
 ORNAMENT|Hoa văn trang trí|auto=Theo ngày lễ;hoala=Dây hoa lá;hoanhai=Chuỗi hoa nhỏ;ladeo=Lá dương xỉ;thuong=Hoa văn thường;0=Tắt'
 SET_GROUP=main
 settings_def() { case "$SET_GROUP" in look) echo "$SETTINGS_LOOK" ;; power) echo "$SETTINGS_POWER" ;; auto) echo "$SETTINGS_AUTO" ;; *) echo "$SETTINGS_DEF" ;; esac; }
@@ -844,7 +845,7 @@ choose_tap() { # x y
   nv=$(echo "$CH_OPTS" | tr ';' '\n' | sed -n "${idx}p" | cut -d'=' -f1)
   old=$(setting_value "$CH_KEY")
   [ "$nv" = "$old" ] && { VIEW=settings; return; }
-  save_setting "$CH_KEY" "$nv"; eval "$CH_KEY=\"$nv\""
+  save_setting "$CH_KEY" "$nv"; eval "$CH_KEY=\"$nv\""; settings_json
   if [ "$CH_KEY" = LAYOUT ]; then             # đổi bố cục -> các phần về kiểu hợp với bố cục đó
     for k in CLOCK_STYLE EVENT_STYLE PHOTO_STYLE; do save_setting $k auto; eval "$k=auto"; done
     VIEW=main; SET_GROUP=main; MOFF=0; EVPAGE=0; return
@@ -944,6 +945,7 @@ update_tap() { # x y
     "$FB" -q -c -m -M -t "regular=$BOLD,px=36" "Đang cập nhật lên bản $UPD_AVAIL…" >/dev/null 2>&1
     rm -f /tmp/dash.pid
     wifi_on >/dev/null 2>&1
+    HANDOVER=1                                  # giữ giao diện Kindle đóng băng cho bản mới tiếp quản
     nohup sh "$DIR/update.sh" --install --restart >> "$(dirname "$DIR")/dashboard_update.log" 2>&1 &
     exit 0
   fi
@@ -997,7 +999,7 @@ go_home() {
   lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
   log_trim
   remote_stop
-  fw_resume
+  fw_resume; HANDOVER=1
   pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
   rm -f /tmp/dash.pid
   restore_lock_bg
@@ -1107,7 +1109,7 @@ process_taps() {
   mv "$TAPQ" "$TAPQ.work" 2>/dev/null || return 1
   while read -r tx ty sx1 sy1 sx2; do
     if [ "$tx" = S ]; then handle_swipe "$ty" "$sx1" "$sy1" "$sx2"
-    elif [ "$tx" = C ]; then handle_cmd "$ty" "$sx1"
+    elif [ "$tx" = C ]; then handle_cmd "$ty" "$sx1" "$sy1"
     elif [ -n "$ty" ]; then handle_tap "$tx" "$ty"; fi
   done < "$TAPQ.work"
   rm -f "$TAPQ.work"
@@ -1132,15 +1134,27 @@ if [ -f "$DIR/start_view" ]; then sv=$(cat "$DIR/start_view"); rm -f "$DIR/start
 fi
 if is_night; then NIGHT_WAS=1; else NIGHT_WAS=0; fi
 trap 'WOKE=1' USR1
-# lần chạy trước (cập nhật, lỗi) còn để giao diện đóng băng -> đánh thức để đọc/đặt hướng màn hình
-if fw_paused; then kill -CONT "$(cat "$FW_FLAG")" 2>/dev/null; rm -f "$FW_FLAG"; sleep 1; fi
-LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
-LOCK_NOW="$LOCK_ORIG"
+# Thoát vì bất kỳ lý do gì (lỗi, bị dừng) -> luôn trả lại giao diện Kindle đầy đủ (trừ khi giao cho bản cập nhật)
+trap 'if [ "$HANDOVER" != 1 ] && fw_paused; then fw_resume; fi' EXIT
+trap 'exit 0' TERM INT
 want=$(lock_for "$ORIENTATION")
-if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
+if fw_paused && [ -n "$(proc_state "$(cat "$FW_FLAG")")" ]; then
+  # tiếp quản từ lần chạy trước (vừa cập nhật / khởi động lại): giao diện Kindle vẫn đang đóng băng -> giữ nguyên,
+  # không đánh thức (tránh lộ giao diện Kindle dở dang)
+  LOCK_ORIG=$(cat /tmp/dash_lock_orig 2>/dev/null); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U
+  LOCK_NOW=$(cat /tmp/dash_lock_now 2>/dev/null); [ -n "$LOCK_NOW" ] || LOCK_NOW=$LOCK_ORIG
+  [ "$want" != "$LOCK_NOW" ] && fw_thaw_do set_lock "$want" && LOCK_NOW="$want"
+  log "framework still paused -> take over (lock $LOCK_NOW)"
+else
+  rm -f "$FW_FLAG"
+  LOCK_ORIG=$(get_lock); [ -n "$LOCK_ORIG" ] || LOCK_ORIG=U; echo "$LOCK_ORIG" > /tmp/dash_lock_orig
+  LOCK_NOW="$LOCK_ORIG"
+  if [ "$want" != "$LOCK_ORIG" ]; then set_lock "$want" && LOCK_NOW="$want"; sleep 3; fi
+  fw_pause
+  if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; usleep 300000 2>/dev/null || sleep 1; else log "framework stopped"; sleep 2; fi
+fi
+echo "$LOCK_NOW" > /tmp/dash_lock_now
 log "orientation $ORIENTATION: lock $LOCK_ORIG -> $LOCK_NOW"
-fw_pause
-if fw_paused; then log "framework paused (pid $(cat "$FW_FLAG"))"; usleep 300000 2>/dev/null || sleep 1; else log "framework stopped"; sleep 2; fi
 "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "Đang tải dashboard…" >/dev/null 2>&1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
 log "fb rotate at start: $(cat "$ROTF" 2>/dev/null)"
@@ -1178,12 +1192,13 @@ while true; do
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   if [ "$VIEW" = status ]; then
     key=$(status_key)
-    if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then draw 0; LAST_KEY="$key"; else status_tick; fi
+    if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then draw 0; LAST_KEY="$key"; [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }; else status_tick; fi
   elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ $DATA_CHANGED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ -n "$SERVER_URL" ]; then
     LAST_PAGE="$PAGE"
     NFULL=$((NFULL + 1)); full=0; [ $((NFULL % FULL_REFRESH_EVERY)) -eq 1 ] && full=1
     [ $TAPPED = 1 ] && [ "$key" = "$LAST_KEY" ] && full=0
     draw $full; LAST_KEY="$key"; stat_full
+    [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; }
   else
     update_clock; stat_part
   fi

@@ -34,11 +34,10 @@ top_for_cap() { fmetric "$1"; echo $(( $3 - $2 * (FA - FC) / FK )); }
 TWC="|"
 # Bảng độ rộng ký tự ASCII nạp 1 lần vào biến shell (MW_<font>_<ký tự>) -> đo số, giờ, chữ không dấu không cần awk
 mw_load() {
-  eval "$(awk 'BEGIN { split("sp co dt cm hy sl pc lp rp", N, " "); split(" :.,-/%()", C, "")
-      for (i = 1; i <= 9; i++) M[C[i]] = N[i]
-      for (c = 48; c < 123; c++) { ch = sprintf("%c", c); if (ch ~ /[0-9A-Za-z]/) M[ch] = ch } }
+  eval "$(awk 'BEGIN { M[" "] = "sp"; M[":"] = "co"; M["."] = "dt"; M[","] = "cm"; M["-"] = "hy"; M["/"] = "sl"; M["%"] = "pc"; M["("] = "lp"; M[")"] = "rp"
+      for (c = 48; c < 123; c++) { ch = sprintf("%c", c); if (ch ~ /^[0-9A-Za-z]$/) M[ch] = ch } }
     FNR == 1 { k = FILENAME; sub(/.*\//, "", k); sub(/\.txt$/, "", k) }
-    { split($0, a, "\t"); if (FNR == 1) print "MK_" k "=" a[2]; else if (a[1] in M) print "MW_" k "_" M[a[1]] "=" a[2] }' "$DIR"/lib/metrics/*.txt 2>/dev/null)"
+    { split($0, a, "\t"); if (FNR == 1) print "MK_" k "=" a[2]; else if (a[1] in M) print "MW_" k "_" M[a[1]] "=" a[2] }' "$DIR"/lib/metrics/*.txt 2>/dev/null | grep -E '^M[KW]_[A-Za-z0-9_]+=[0-9]+$')"
 }
 tw_sh() { # chỉ ký tự ASCII thường gặp; trả về 1 nếu gặp ký tự lạ
   _s=$3; _sum=0
@@ -80,9 +79,25 @@ tw_awk() {
       printf "%d\n", s * PX / K + 0.5 }'
 }
 
+# Độ tương phản (CONTRAST): cao (mặc định) = chữ phụ đậm hơn, nét mảnh đổi sang nét thường;
+# vua = vừa; nhe = như bản thiết kế gốc (nhạt, mảnh — đẹp trên ảnh nhưng mờ trên e-ink)
+shade() { # tên màu FBInk -> màu theo độ tương phản
+  case "${CONTRAST:-cao}" in
+    cao) case "$1" in GRAY6) echo GRAY2 ;; GRAY9) echo GRAY4 ;; GRAYA) echo GRAY5 ;; GRAYC) echo GRAY7 ;; *) echo "$1" ;; esac ;;
+    vua) case "$1" in GRAY6) echo GRAY4 ;; GRAY9) echo GRAY6 ;; GRAYA) echo GRAY7 ;; GRAYC) echo GRAY9 ;; *) echo "$1" ;; esac ;;
+    *) echo "$1" ;;
+  esac
+}
+fkey() { # FONT PX -> FKEY (nét mảnh quá thì đổi đậm hơn để đọc rõ trên e-ink)
+  FKEY=$1
+  case "${CONTRAST:-cao}" in
+    cao) case "$1" in thin) FKEY=light ;; light) [ "$2" -lt 44 ] && FKEY=reg ;; esac ;;
+    vua) [ "$1" = thin ] && [ "$2" -lt 160 ] && FKEY=light ;;
+  esac
+}
 fbcolor() { # k m s h c w -> cờ FBInk
   case "$1" in
-    m) echo "-C GRAY6" ;; s) echo "-C GRAY9" ;; h) echo "-C GRAYC" ;; c) echo "-C GRAYE" ;; d) echo "-C GRAY3" ;;
+    m) echo "-C $(shade GRAY6)" ;; s) echo "-C $(shade GRAY9)" ;; h) echo "-C $(shade GRAYC)" ;; c) echo "-C GRAYE" ;; d) echo "-C GRAY3" ;;
     w) echo "-C WHITE -B BLACK" ;;
     *) [ -n "$TXBG" ] && echo "-C BLACK -B $TXBG" || echo "" ;;
   esac
@@ -95,6 +110,9 @@ fbcolor_bg() { # màu chữ xám trên nền TXBG
 #   Y = top dòng chữ (như FBInk). căn c: X là tâm; căn r: X là mép phải.
 tx() {
   [ -n "$5" ] || return 0
+  fkey "$1" "$2"; _px=$2
+  if [ "${CONTRAST:-cao}" = cao ] && [ "$1" != sym ]; then [ $_px -le 16 ] && _px=$(( _px + 3 )); [ $_px -le 20 ] && [ $_px = $2 ] && _px=$(( _px + 1 )); fi
+  set -- "$FKEY" "$_px" "$3" "$4" "$5" "$6" "$7" "$8"
   _f=$(font_path "$1"); _al=${6:-l}
   case "$_al" in
     c) twv "$1" "$2" "$5"; _w=$TWV; [ -n "$8" ] && [ $_w -gt $8 ] && _w=$8; _lx=$(( $3 - _w / 2 )) ;;
@@ -119,13 +137,13 @@ txfit() {
 }
 # txw KEY PX X Y "đoạn văn" RỘNG CAO [màu]  — nhiều dòng, tự xuống dòng
 txw() {
-  _f=$(font_path "$1"); _r=$(( W - $3 - $6 )); [ $_r -lt 0 ] && _r=0
+  fkey "$1" "$2"; _f=$(font_path "$FKEY"); _r=$(( W - $3 - $6 )); [ $_r -lt 0 ] && _r=0
   _bt=$(( H - $4 - $7 )); [ $_bt -lt 0 ] && _bt=0
   "$FB" -q -b -O $TXTOPT $(fbcolor_bg "${8:-k}") -t "regular=$_f,px=$2,top=$4,left=$3,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
 }
 
 rect() { # x y w h [màu FBInk: BLACK GRAY6 GRAYC GRAYE WHITE ...]
-  "$FB" -q -b -B "${5:-BLACK}" -k "top=$2,left=$1,width=$3,height=$4" >/dev/null 2>&1
+  "$FB" -q -b -B "$(shade "${5:-BLACK}")" -k "top=$2,left=$1,width=$3,height=$4" >/dev/null 2>&1
 }
 hl() { rect "$2" "$1" $(( $3 - $2 )) "${5:-1}" "${4:-GRAYC}"; }   # hl Y X0 X1 [màu] [dày]
 vl() { rect "$1" "$2" "${5:-1}" $(( $3 - $2 )) "${4:-GRAYC}"; }   # vl X Y0 Y1 [màu] [dày]
