@@ -1,8 +1,8 @@
-version=2026.11.17.27
-sha256=117dfa393ceff3b411e57cd020a6631459708a2cdf4b2f4a744e2810170f98a3
-size=4772034
-core_sha=c48eb3b2e1b8db65c8797ea6011711b0c5fc97b50eec07a86110f652c28b2dbc
-core_size=342497
+version=2026.11.17.28
+sha256=d21a33d2f1683ae8464e4a6abb7268e29d87d56bd2fff7f93247b2bd9380123c
+size=4772595
+core_sha=c4d4aaabfd7fcb309c94bbdc3f8af30dcf118e720000b7438f4617b7ece792ad
+core_size=342912
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Nút trên thanh trên cùng to hơn, dễ bấm; gộp đèn −/+ thành một nút ☀ bấm để đổi mức
+notes=Cài đặt: hàng cao hơn, chữ to hơn, chia trang; danh sách chọn to hơn

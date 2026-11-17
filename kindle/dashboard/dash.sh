@@ -889,7 +889,7 @@ SETTINGS_DEF='@LOOK|Giao diện…|
 @AUTO|Tự động theo giờ…|
 @REMOTE|Điều khiển từ điện thoại…|
 @DIAG|Chẩn đoán & pin…|
-@CALIB|Hiệu chỉnh cảm ứng (chạm bị lệch)…|
+@CALIB|Hiệu chỉnh cảm ứng…|
 DEFAULT_PAGE|Trang mặc định|main=Bảng chính;tin=Bảng tin;bloc=Lịch bloc;dem=Ban đêm;pomo=Pomodoro;news=Tin tức
 NIGHT_PAGE|Trang ban đêm|dem=Tự chuyển sang Ban đêm;giu=Giữ trang đang xem
 ORIENTATION|Hướng màn hình|doc=Dọc (sạc ở dưới);nguoc=Lộn ngược (sạc ở trên);ngangtrai=Ngang (sạc bên trái);ngangphai=Ngang (sạc bên phải)
@@ -915,10 +915,15 @@ setting_next() { # KEY OPTIONS -> giá trị kế tiếp
   v=$(setting_value "$1")
   echo "$2" | tr ';' '\n' | awk -F'=' -v v="$v" '{k[NR]=$1} $1==v{p=NR} END{n=(p%NR)+1; print k[n]}'
 }
-settings_geom() {
-  SROW_H=46; SY0=86
+settings_geom() { # hàng cao 72 điểm cho dễ chạm; nhiều mục quá thì chia trang (thanh lật trang ở đáy)
+  SROW_H=72; SY0=84
   if [ $W -gt $H ]; then SCOLS=2; SCOLW=$(( (W - 80) / 2 )); else SCOLS=1; SCOLW=$(( W - 80 )); fi
-  SPER=$(( (H - SY0 - 20) / SROW_H ))
+  [ "$SET_GROUP" = "$SPAGE_G" ] || { SPAGE=0; SPAGE_G=$SET_GROUP; }
+  STOTAL=$(settings_def | grep -c .)
+  SPER=$(( (H - SY0 - 10) / SROW_H ))
+  if [ $STOTAL -gt $(( SPER * SCOLS )) ]; then SPER=$(( (H - SY0 - 90) / SROW_H )); fi
+  SPP=$(( SPER * SCOLS )); SPAGES=$(( (STOTAL + SPP - 1) / SPP )); [ ${SPAGE:-0} -ge $SPAGES ] && SPAGE=0
+  SNAV_Y=$(( H - 80 ))
 }
 render_settings() {
   settings_geom
@@ -928,29 +933,35 @@ render_settings() {
   txt 30 22 $(( W - 150 )) "$I_CHECK" s; txt 30 20 $(( W - 112 )) "Xong" b
   box 72 40 $(( W - 80 )) 2
   i=0
-  settings_def | while IFS='|' read -r key label opts; do
+  settings_def | sed -n "$(( SPAGE * SPP + 1 )),$(( SPAGE * SPP + SPP ))p" | while IFS='|' read -r key label opts; do
     col=$(( i / SPER )); row=$(( i % SPER ))
-    x=$(( 40 + col * SCOLW )); y=$(( SY0 + row * SROW_H ))
+    x=$(( 40 + col * SCOLW )); y=$(( SY0 + row * SROW_H + 8 ))
     vw=$(( SCOLW * 45 / 100 ))
-    txt 26 $(( y + 8 )) $(( x + 4 )) "$label" "" $(( SCOLW - vw - 20 )) 38
+    txt 30 $(( y + 8 )) $(( x + 4 )) "$label" "" $(( SCOLW - vw - 20 )) 44
     if [ "$key" = "@UPDATE" ]; then
       ut="Bản $DASH_VER"; [ -n "$UPD_AVAIL" ] && ut="Có bản mới $UPD_AVAIL"
-      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 38
-    elif [ "$key" = "@PICK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+      txt 30 $(( y + 8 )) $(( x + SCOLW - vw )) "$ut" b $(( vw - 10 )) 44
+    elif [ "$key" = "@PICK" ]; then txt 30 $(( y + 8 )) $(( x + SCOLW - 44 )) "$I_RIGHT" s
     elif [ "$key" = "@REMOTE" ]; then
       rt="Tắt"; [ "$REMOTE" = 1 ] && rt="Bật"
-      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$rt" b $(( vw - 50 )) 38; txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+      txt 30 $(( y + 8 )) $(( x + SCOLW - vw )) "$rt" b $(( vw - 50 )) 44; txt 30 $(( y + 8 )) $(( x + SCOLW - 44 )) "$I_RIGHT" s
     elif [ "$key" = "@DIAG" ]; then
       batt_rate; dt="Pin ${BATT:-$(battery)}%"; [ -n "$BR_LEFT" ] && dt="$dt · còn $BR_LEFT"
-      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$dt" b $(( vw - 50 )) 38; txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
-    elif [ "${key#@}" != "$key" ] && [ "$key" != "@LOOK" ]; then txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
+      txt 30 $(( y + 8 )) $(( x + SCOLW - vw )) "$dt" b $(( vw - 50 )) 44; txt 30 $(( y + 8 )) $(( x + SCOLW - 44 )) "$I_RIGHT" s
+    elif [ "${key#@}" != "$key" ] && [ "$key" != "@LOOK" ]; then txt 30 $(( y + 8 )) $(( x + SCOLW - 44 )) "$I_RIGHT" s
     elif [ "$key" = "@LOOK" ]; then
-      txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display LAYOUT "$(echo "$SETTINGS_LOOK" | sed -n 1p | cut -d'|' -f3)")" b $(( vw - 50 )) 38
-      txt 26 $(( y + 8 )) $(( x + SCOLW - 40 )) "$I_RIGHT" s
-    else txt 26 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 38; fi
-    box $(( y + SROW_H - 2 )) $x $(( SCOLW - 16 )) 1
+      txt 30 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display LAYOUT "$(echo "$SETTINGS_LOOK" | sed -n 1p | cut -d'|' -f3)")" b $(( vw - 50 )) 44
+      txt 30 $(( y + 8 )) $(( x + SCOLW - 44 )) "$I_RIGHT" s
+    else txt 30 $(( y + 8 )) $(( x + SCOLW - vw )) "$(setting_display "$key" "$opts")" b $(( vw - 10 )) 44; fi
+    box $(( y + SROW_H - 10 )) $x $(( SCOLW - 16 )) 1
     i=$((i + 1))
   done
+  if [ $SPAGES -gt 1 ]; then                 # thanh lật trang
+    box $(( SNAV_Y - 6 )) 40 $(( W - 80 )) 2
+    [ $SPAGE -gt 0 ] && txt 32 $(( SNAV_Y + 14 )) 40 "‹ Trang trước" b 260
+    txt 26 $(( SNAV_Y + 18 )) $(( W / 2 - 30 )) "$(( SPAGE + 1 ))/$SPAGES" "" 80
+    [ $(( SPAGE + 1 )) -lt $SPAGES ] && txt 32 $(( SNAV_Y + 14 )) $(( W - 250 )) "Trang sau ›" b 220
+  fi
   refresh 1
 }
 settings_tap() { # x y
@@ -960,9 +971,14 @@ settings_tap() { # x y
     return
   fi
   settings_geom
-  row=$(( ($2 - SY0) / SROW_H )); col=$(( ($1 - 40) / SCOLW )); [ $col -ge $SCOLS ] && return
+  if [ $SPAGES -gt 1 ] && [ $2 -ge $(( SNAV_Y - 10 )) ]; then   # lật trang
+    if [ $1 -lt $(( W / 2 )) ]; then [ $SPAGE -gt 0 ] && SPAGE=$(( SPAGE - 1 )); else [ $(( SPAGE + 1 )) -lt $SPAGES ] && SPAGE=$(( SPAGE + 1 )); fi
+    return
+  fi
+  [ $2 -ge $(( SY0 + 8 )) ] || return
+  row=$(( ($2 - SY0 - 8) / SROW_H )); col=$(( ($1 - 40) / SCOLW )); [ $col -ge $SCOLS ] && return
   [ $row -ge $SPER ] && return
-  idx=$(( col * SPER + row + 1 ))
+  idx=$(( SPAGE * SPP + col * SPER + row + 1 ))
   line=$(settings_def | sed -n "${idx}p"); [ -n "$line" ] || return
   key=${line%%|*}; opts=${line##*|}
   case "$key" in
@@ -1002,7 +1018,7 @@ choose_geom() {
     CW2=$(( (W - 80) / CCOLS )); rows=$(( (CH_N + CCOLS - 1) / CCOLS ))
     CRH=$(( (H - CY0 - 20) / rows )); CPER=$CH_N
   else
-    CRH=70; CPER=$(( (H - CY0 - 20) / CRH )); CCOLS=1
+    CRH=80; CPER=$(( (H - CY0 - 20) / CRH )); CCOLS=1
     [ $CH_N -gt $CPER ] && CCOLS=2
     CW2=$(( (W - 80) / CCOLS ))
   fi
@@ -1042,8 +1058,8 @@ render_choose() {
     else
       col=$(( i / CPER )); row=$(( i % CPER ))
       x=$(( 40 + col * CW2 )); y=$(( CY0 + row * CRH ))
-      if [ "$k" = "$cur" ]; then txt 30 $(( y + 16 )) $(( x + 6 )) "$I_DISC" s; st=b; else txt 30 $(( y + 16 )) $(( x + 6 )) "$I_RING" s; st=""; fi
-      txt 30 $(( y + 14 )) $(( x + 54 )) "$d" "$st" $(( CW2 - 70 )) 46
+      if [ "$k" = "$cur" ]; then txt 34 $(( y + 18 )) $(( x + 6 )) "$I_DISC" s; st=b; else txt 34 $(( y + 18 )) $(( x + 6 )) "$I_RING" s; st=""; fi
+      txt 32 $(( y + 16 )) $(( x + 58 )) "$d" "$st" $(( CW2 - 74 )) 50
       box $(( y + CRH - 2 )) $x $(( CW2 - 16 )) 1
     fi
     i=$((i + 1))
