@@ -923,7 +923,7 @@ REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
 OPT_NEW|Tối ưu pin mới (bản 18.03)|1=Bật;0=Tắt (chạy như bản 18.02)
 HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
 HOME_REPAINT|Khi về Home, làm mới Kindle|chuyen=Chuyển trang (~3 giây);nguon=Thêm ngủ rồi dậy (~7 giây, chắc nhất);0=Không
-DEEP_SLEEP|Ngủ sâu ban đêm|0=Tắt;1=Bật (thử nghiệm)
+DEEP_SLEEP|Ngủ sâu ban đêm|0=Tắt;1=Bật (cần "Thử ngủ sâu" trước)
 DEEP_SLEEP_MIN|Khi ngủ sâu, dậy mỗi|30=30 phút;60=1 giờ;120=2 giờ
 @SLEEPTEST|Thử ngủ sâu 1 phút…|'
 SETTINGS_AUTO='SCHEDULE|Tự đổi giao diện theo giờ|0=Tắt;lamviec=Ngày làm việc;hoctap=Học tập;giadinh=Ở nhà;tuychinh=Tuỳ chỉnh (lich-giao-dien.txt)
@@ -1139,6 +1139,11 @@ choose_tap() { # x y
     VIEW=main; SET_GROUP=main; MOFF=0; EVPAGE=0; return
   fi
   VIEW=settings
+  if [ "$CH_KEY" = DEEP_SLEEP ] && [ "$nv" = 1 ] && [ "${DS_TESTED:-0}" != 1 ]; then   # chưa thử thì không cho bật
+    save_setting DEEP_SLEEP 0; DEEP_SLEEP=0
+    MSG_TEXT="Chưa bật ngủ sâu: hãy bấm \"Thử ngủ sâu 1 phút…\" (ngay bên dưới) trước. Máy tự dậy được thì mới bật được."
+    MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return
+  fi
   if [ "$CH_KEY" = ORIENTATION ]; then
     PREV_ORIENT="$old"; REORIENT_FAIL=0; reorient "$nv"
     if [ "$REORIENT_FAIL" = 1 ]; then

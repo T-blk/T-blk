@@ -1,6 +1,7 @@
 # Ngủ sâu ban đêm: cho Kindle "suspend" thật (gần như không tốn pin), hẹn đồng hồ RTC đánh thức mỗi N phút
 # để cập nhật giờ/thời tiết; bấm nút nguồn để dậy ngay. Mặc định TẮT — hãy dùng "Thử ngủ sâu 1 phút" trước.
 # Tự tắt nếu máy không hỗ trợ (không ngủ được, hoặc RTC không đánh thức được).
+# Chỉ bật được sau khi "Thử ngủ sâu 1 phút" báo chạy tốt (DS_TESTED=1, lưu trong settings.conf).
 : "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
 RTC=/sys/class/rtc/rtc0
 DS_OFF=""                      # lý do đã tự tắt trong phiên này
@@ -24,6 +25,7 @@ deep_sleep() {
   echo mem > /sys/power/state 2>/dev/null
   t1=$(date +%s)
   date +%s > /tmp/dash_woke; rm -f /tmp/dash_sleeping
+  lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null   # phòng khi powerd đặt lại sau khi dậy
   echo 0 > "$RTC/wakealarm" 2>/dev/null
   [ -n "$l0" ] && lipc-set-prop com.lab126.powerd flIntensity "$l0" 2>/dev/null; LIGHT_NOW=""
   DS_SLEPT=$(( t1 - t0 ))
@@ -39,7 +41,7 @@ deep_sleep() {
 
 # Có nên ngủ sâu ở vòng này không?
 deep_want() {
-  [ "$DEEP_SLEEP" = 1 ] && [ -z "$DS_OFF" ] || return 1
+  [ "$DEEP_SLEEP" = 1 ] && [ -z "$DS_OFF" ] && [ "${DS_TESTED:-0}" = 1 ] || return 1
   is_night || return 1
   [ "$CHARGING" = 1 ] && return 1                     # đang sạc thì khỏi
   [ "$REMOTE" = 1 ] && return 1                       # đang nghe lệnh điện thoại
@@ -53,11 +55,12 @@ deep_cycle() { # vẽ dòng báo, ngủ, xử lý kết quả. Trả 0 nếu đ�
   wk=$(date -d "@$(( $(date +%s) + n ))" +%H:%M 2>/dev/null)
   rect 0 $(( H - 40 )) $W 40 WHITE
   tx reg 18 $(( W / 2 )) $(( H - 34 )) "Đang ngủ sâu tiết kiệm pin${wk:+ · tự dậy lúc $wk} · bấm nút nguồn để dậy" c s
-  refresh 0 "top=$(( H - 40 )),left=0,width=$W,height=40"
+  refresh_wait "top=$(( H - 40 )),left=0,width=$W,height=40"   # vẽ xong hẳn rồi mới ngủ (không thì dòng báo bị cắt dở)
   deep_sleep $n
   case "$DS_RESULT" in
     nosleep|nosupport) DS_OFF="máy không vào được chế độ ngủ"; log "ngủ sâu: tự tắt ($DS_OFF)" ;;
-    nowake) DS_OFF="đồng hồ hẹn giờ không đánh thức được máy"; DEEP_SLEEP=0; save_setting DEEP_SLEEP 0; log "ngủ sâu: tự tắt ($DS_OFF)" ;;
+    nowake) DS_OFF="đồng hồ hẹn giờ không đánh thức được máy"; DEEP_SLEEP=0; save_setting DEEP_SLEEP 0
+            DS_TESTED=0; save_setting DS_TESTED 0; log "ngủ sâu: tự tắt ($DS_OFF)" ;;
     early) LAST_ACT=$(date +%s) ;;                    # người dùng bấm nút nguồn: thức ít nhất 3 phút
   esac
   return 0
@@ -69,6 +72,8 @@ deep_test() { # nút "Thử ngủ sâu 1 phút" trong Cài đặt
   if ! deep_supported; then MSG_TEXT="Máy này không hỗ trợ ngủ sâu (thiếu /sys/power/state hoặc đồng hồ RTC)."
   else
     deep_sleep 60
+    case "$DS_RESULT" in ok) DS_TESTED=1 ;; early) ;; *) DS_TESTED=0; DEEP_SLEEP=0; save_setting DEEP_SLEEP 0 ;; esac
+    save_setting DS_TESTED "${DS_TESTED:-0}"
     case "$DS_RESULT" in
       ok) MSG_TEXT="Ngủ sâu chạy tốt: máy đã ngủ $DS_SLEPT giây và tự dậy. Có thể bật \"Ngủ sâu ban đêm\"." ;;
       early) MSG_TEXT="Máy ngủ được nhưng dậy sớm ($DS_SLEPT giây) — có thể do bấm nút nguồn. Thử lại không bấm gì." ;;

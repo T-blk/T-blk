@@ -1,8 +1,8 @@
-version=2026.11.18.05
-sha256=ffede9a63afd660460a6a747c8d34813ad9167ebbd1e2f12ca4fb95739e2f2f8
-size=4782330
-core_sha=6376208b39f20442f1bfa42d0595534104252524d17ebfb4143db82a50ec6367
-core_size=351991
+version=2026.11.18.06
+sha256=619a746cdeda417f081f075e61e9f09b8317170602b90cdf6edde365a1f7eb5e
+size=4782591
+core_sha=01a771395a6214a21416c09464a0ace943a324646e09bcd42dedf4a6b0576e2a
+core_size=352286
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Đồng hồ và ô pin: chờ màn hình vẽ xong hẳn trước khi vẽ tiếp, tránh chữ số hiện thiếu hoặc còn sót nét cũ
+notes=Ngủ sâu ban đêm an toàn hơn: chỉ bật được sau khi Thử ngủ sâu 1 phút báo chạy tốt; vẽ xong dòng báo rồi mới ngủ
