@@ -12,7 +12,7 @@ LOG="$US/dashboard_update.log"
 NEW="$US/.dash_ota_new"
 FB=/tmp/dash_fbink; [ -x "$FB" ] || { cp "$DIR/bin/fbink" "$FB" 2>/dev/null && chmod +x "$FB"; }
 BOLD="$DIR/fonts/NotoSans-Bold.ttf"
-KEEP_FILES="dash.conf settings.conf todo.txt AUTOSTART battery.log lich-giao-dien.txt .rota_up2 .mig_noorn sudoku.save sudoku.stats chess.save go.save"
+KEEP_FILES="dash.conf settings.conf todo.txt AUTOSTART battery.log lich-giao-dien.txt .rota_up2 .mig_noorn"
 KEEP_DIRS="photos clock"
 ASSET_DIRS="fonts bin ornaments clockm ring"   # tài nguyên lớn: chỉ tải lại khi bản mới có thay đổi
 
@@ -49,12 +49,27 @@ check() {
 }
 
 dash_running() { [ -f /tmp/dash.pid ] && kill -0 "$(cat /tmp/dash.pid)" 2>/dev/null; }
-stop_dash() {
+stop_dash() { # dừng dashboard và CHỜ nó thoát hẳn (tối đa ~8 giây, rồi buộc dừng) -> bản mới không bị khoá "đang chạy"
   touch /tmp/dash_stop
   pkill -f "$DIR/dash.sh" 2>/dev/null; pkill -f "$DIR/touch.sh" 2>/dev/null; pkill -f "dd if=/dev/input" 2>/dev/null
-  sleep 1; rm -f /tmp/dash.pid
+  i=0; while [ $i -lt 16 ] && pgrep -f "$DIR/dash.sh" >/dev/null 2>&1; do usleep 500000 2>/dev/null || sleep 1; i=$((i + 1)); done
+  pkill -9 -f "$DIR/dash.sh" 2>/dev/null
+  rm -f /tmp/dash.pid; rm -rf /tmp/dash.lock
 }
-start_dash() { rm -f /tmp/dash_stop; DASH_NOLEARN=1 nohup sh "$DIR/dash.sh" > "$DIR/dash.log" 2>&1 & }
+start_dash() { # giữ lại nhật ký lần chạy trước (dash.log.1) để còn tra lỗi
+  rm -f /tmp/dash_stop; [ -f "$DIR/dash.log" ] && mv -f "$DIR/dash.log" "$DIR/dash.log.1"
+  DASH_NOLEARN=1 nohup sh "$DIR/dash.sh" >> "$DIR/dash.log" 2>&1 &
+}
+# Chỉ một lần cập nhật/quay lại tại một thời điểm (chạm "Cap nhat" 2 lần không được cài chồng lên nhau)
+upd_lock() {
+  if ! mkdir /tmp/dash_update.lock 2>/dev/null; then
+    _o=$(cat /tmp/dash_update.lock/pid 2>/dev/null)
+    if [ -n "$_o" ] && [ "$_o" != "$$" ] && kill -0 "$_o" 2>/dev/null; then show "Đang có một lần cập nhật khác chạy — vui lòng chờ"; exit 0; fi
+    rm -rf /tmp/dash_update.lock; mkdir /tmp/dash_update.lock 2>/dev/null || exit 0
+  fi
+  echo $$ > /tmp/dash_update.lock/pid; touch /tmp/dash_updating
+  trap 'rm -rf /tmp/dash_update.lock; rm -f /tmp/dash_updating' EXIT
+}
 healthy() { # chờ bản mới vẽ được màn hình chính
   i=0; while [ $i -lt ${HEALTH_TIMEOUT:-180} ]; do
     grep -qE "first draw ok|render main: done" "$DIR/dash.log" 2>/dev/null && return 0
@@ -154,10 +169,11 @@ for a in "$@"; do case "$a" in --quiet) QUIET=1 ;; --restart) RESTART=1 ;; esac;
 case "$1" in
   --check) QUIET=1; check ;;
   --install)
+    upd_lock
     if ! install && [ "$RESTART" = 1 ] && ! dash_running; then
       # tải/cài lỗi: chạy lại bản đang có; vẫn không lên thì trả giao diện Kindle
       sleep 3; start_dash; healthy || ui_back
     fi ;;
-  --rollback) rollback ;;
+  --rollback) upd_lock; rollback ;;
   *) echo "Dùng: sh update.sh --check | --install [--restart] | --rollback [--restart]" ;;
 esac

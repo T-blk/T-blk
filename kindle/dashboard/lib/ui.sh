@@ -11,7 +11,7 @@ font_path() {
     reg) echo "$FONTDIR/Inter-Regular.ttf" ;; semi) echo "$FONTDIR/Inter-SemiBold.ttf" ;;
     bold) echo "$FONTDIR/Inter-Bold.ttf" ;; black) echo "$FONTDIR/Inter-Black.ttf" ;;
     mono) echo "$FONTDIR/JBMono-Light.ttf" ;; sym) echo "$SYM" ;;
-    nbold) echo "$BOLD" ;; chess) echo "$DIR/lib/chess.ttf" ;; *) echo "$REG" ;;
+    nbold) echo "$BOLD" ;; *) echo "$REG" ;;
   esac
 }
 # có font Inter chưa (bản cũ chưa chép font thì quay về Noto)
@@ -123,15 +123,6 @@ tx() {
   _r=0; [ -n "$8" ] && _r=$(( W - _lx - $8 - 2 )); [ $_r -lt 0 ] && _r=0
   _bt=$(( H - $4 - $2 * 14 / 10 )); [ $_bt -lt 0 ] && _bt=0
   "$FB" -q -b -O $(fbcolor_bg "${7:-k}") -t "regular=$_f,px=$2,top=$4,left=$_lx,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
-}
-# 8 byte kích thước của ảnh PNG (rộng 4 byte, cao 4 byte) dạng số thập phân. Thử cách nhanh trước;
-# busybox đời cũ có thể không có "od -j -N" -> đọc bằng dd rồi "od -b" (bát phân) và đổi sang thập phân.
-png_bytes() {
-  _pf=$1; _pb=$(od -An -tu1 -j16 -N8 "$_pf" 2>/dev/null); set -- $_pb
-  if [ $# -lt 8 ]; then _pb=""
-    for _o in $(dd if="$_pf" bs=1 skip=16 count=8 2>/dev/null | od -b 2>/dev/null); do case "$_o" in [0-3][0-7][0-7]) _pb="$_pb $(( 0$_o ))" ;; esac; done
-  fi
-  echo $_pb
 }
 # tx_fit KEY PX X Y "chữ" RỘNG [màu] — một dòng, tự thu nhỏ cỡ chữ cho vừa RỘNG (không xuống dòng)
 tx_fit() {

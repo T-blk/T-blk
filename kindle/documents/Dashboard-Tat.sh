@@ -5,6 +5,7 @@ touch /tmp/dash_stop; rm -f /tmp/dash.pid
 pkill -f /mnt/us/dashboard/dash.sh 2>/dev/null
 pkill -f /mnt/us/dashboard/touch.sh 2>/dev/null
 pkill -f "dd if=/dev/input" 2>/dev/null
+pkill -f /mnt/us/dashboard/lib/watchdog.sh 2>/dev/null; rm -rf /tmp/dash.lock; rm -f /tmp/dash_alive
 lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
 if [ -f /mnt/us/dashboard/lib/fw.sh ]; then . /mnt/us/dashboard/lib/fw.sh; fw_resume
 else status framework 2>/dev/null | grep -q running || start framework 2>/dev/null || start lab126_gui 2>/dev/null; fi

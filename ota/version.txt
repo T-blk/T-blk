@@ -1,8 +1,8 @@
-version=2026.11.18.01
-sha256=a010e32386ff511a7ceef85eb51ef8016bf03d359e65482f7f8f459bbf08616b
-size=4846023
-core_sha=de776f710832d7344d7543bf91f80a2d822b0b36fc54ff44f1ffa28103f2bfb5
-core_size=415866
+version=2026.11.18.02
+sha256=7173086a5648f4fb46f6108c37208c37af22cecfe090d6fd07d4b637c39db99e
+size=4776710
+core_sha=6030bc9940ece45d5a31e9cb307562c3464c254c95454c255187c36bcc5e8891
+core_size=346345
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa ghi chú Sudoku hiện sai số; máy cờ vua nhanh hơn, nghĩ theo giới hạn thời gian; bố cục Ảnh hết nháy khi pin đổi; bố cục không ảnh hết vẽ thừa
+notes=Quay về bản 2026.11.17.28 (trước khi có trò chơi) + sửa an toàn: không bao giờ chạy 2 dashboard cùng lúc, tự trả lại giao diện Kindle nếu dashboard kẹt, nút trong thư viện báo ngay khi chạm

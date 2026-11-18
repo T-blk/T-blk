@@ -16,20 +16,30 @@ fw_pause() {
   stop framework 2>/dev/null || stop lab126_gui 2>/dev/null
 }
 
+# Trả framebuffer về góc xoay của giao diện Kindle (dashboard có thể đã tự xoay, vd lộn ngược).
+# Ưu tiên góc đã lưu lúc xoay (/tmp/dash_rota_orig); nếu mất (vd 2 bản dashboard tranh nhau) thì dùng góc
+# "đứng thẳng" đã học từ màn hình chính (.rota_up2). Chỉ gọi khi đánh thức giao diện Kindle đang bị đóng băng.
+fw_restore_rota() {
+  _rf=/sys/class/graphics/fb0/rotate; _ro=""
+  if [ -s /tmp/dash_rota_orig ]; then _ro=$(cat /tmp/dash_rota_orig); rm -f /tmp/dash_rota_orig
+  elif [ -s "${DIR:-/mnt/us/dashboard}/.rota_up2" ]; then _ro=$(cat "${DIR:-/mnt/us/dashboard}/.rota_up2"); fi
+  case "$_ro" in [0-3]) [ "$(cat "$_rf" 2>/dev/null)" = "$_ro" ] || { echo "$_ro" > "$_rf"; } 2>/dev/null ;; esac
+}
 fw_resume() {
-  if [ -f "$FW_FLAG" ]; then
-    _p=$(cat "$FW_FLAG"); rm -f "$FW_FLAG"
-    if [ -n "$(proc_state "$_p")" ]; then
-      # dashboard đã tự xoay framebuffer -> trả góc cũ TRƯỚC khi giao diện Kindle chạy lại
-      if [ -s /tmp/dash_rota_orig ]; then
-        echo "$(cat /tmp/dash_rota_orig)" > /sys/class/graphics/fb0/rotate 2>/dev/null; rm -f /tmp/dash_rota_orig
-      fi
-      kill -CONT "$_p" 2>/dev/null
-      lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
-      fw_repaint
-      return 0
-    fi
+  # Tìm giao diện Kindle đang bị đóng băng: theo cờ, hoặc (khi cờ đã mất) chính tiến trình cvm đang ở trạng thái T.
+  # Trước đây mất cờ thì Kindle bị đóng băng mãi (màn hình đen/đứng) -> giờ luôn đánh thức được.
+  _p=""; [ -f "$FW_FLAG" ] && _p=$(cat "$FW_FLAG"); rm -f "$FW_FLAG"
+  case "$(proc_state "$_p")" in T|t) ;; *) _p="" ;; esac
+  if [ -z "$_p" ] && _c=$(cvm_pid); then case "$(proc_state "$_c")" in T|t) _p=$_c ;; esac; fi
+  if [ -n "$_p" ]; then
+    fw_restore_rota                                   # trả góc xoay TRƯỚC khi giao diện Kindle chạy lại
+    kill -CONT "$_p" 2>/dev/null
+    lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
+    fw_repaint
+    return 0
   fi
+  rm -f /tmp/dash_rota_orig
+  lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
   status framework 2>/dev/null | grep -q running || start framework 2>/dev/null || start lab126_gui 2>/dev/null
 }
 fw_paused() { [ -f "$FW_FLAG" ]; }
