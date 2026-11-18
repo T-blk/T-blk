@@ -4,48 +4,6 @@
 # ======================= ĐỒNG HỒ =======================
 clock_style() { s="$CLOCK_STYLE"; [ -z "$s" ] || [ "$s" = auto ] && s="${LAY_CLOCK:-mong}"; echo "$s"; }
 
-# ---------- Đồng hồ số theo "khe" cố định ----------
-# Chữ số của phông Inter rộng hẹp khác nhau ("1" hẹp gần bằng nửa "0"). Nếu vẽ cả chuỗi "11:02" một lần thì khi một số
-# đổi, các số khác có thể xê dịch/đổi cỡ -> cả đồng hồ phải quét lại. Nên mỗi ký tự có một khe rộng cố định (bằng chữ số
-# rộng nhất), cỡ chữ tính theo chuỗi rộng nhất -> cả ngày không đổi cỡ, không xê dịch. Khi cập nhật (CLOCK_PART=1) chỉ
-# khe có ký tự đổi mới bị xoá trắng và vẽ lại; không cần đọc bộ nhớ màn hình.
-# Biến dùng chung đều có tiền tố CLK_ (các hàm vẽ chữ ghi đè biến ngắn như _n, _c, f, w…).
-clock_char() { # x_trái rộng ký_tự
-  if [ "$CLK_KIND" = legacy ]; then txt "$CLK_LPX" "$CLK_LY" "$1" "$3" b
-  else txcap "$CLK_F" "$CLK_CH" $(( $1 + $2 / 2 )) "$CLK_CY" "$3" c; fi
-}
-clock_slots() { # dùng CLK_CHARS CLK_X0 CLK_SW CLK_CW CLK_RY CLK_RH CLK_NEWGK CLK_KIND (+ tham số vẽ)
-  if [ "$CLOCK_PART" = 1 ]; then
-    [ "$CLK_NEWGK" = "$CLK_GK" ] && [ -n "$CLK_PREV" ] || return 0      # bố cục/cỡ đã đổi -> để nơi gọi vẽ lại cả khối
-    CLK_PARTIAL=1; CLK_RECTS=""; CLK_PEND=""; CLK_SX=$CLK_X0
-    set -- $CLK_PREV
-    for CLK_C in $CLK_CHARS; do
-      CLK_WD=$CLK_SW; [ "$CLK_C" = : ] && CLK_WD=$CLK_CW
-      if [ "$CLK_C" != "$1" ]; then
-        rect $CLK_SX $CLK_RY $CLK_WD $CLK_RH WHITE
-        CLK_RECTS="$CLK_RECTS $CLK_RY:$CLK_SX:$CLK_WD:$CLK_RH"; CLK_PEND="$CLK_PEND $CLK_SX:$CLK_C"
-      fi
-      CLK_SX=$(( CLK_SX + CLK_WD )); shift
-    done
-    CLK_PREV=$CLK_CHARS; return 0
-  fi
-  CLK_SX=$CLK_X0
-  for CLK_C in $CLK_CHARS; do
-    CLK_WD=$CLK_SW; [ "$CLK_C" = : ] && CLK_WD=$CLK_CW
-    clock_char $CLK_SX $CLK_WD "$CLK_C"; CLK_SX=$(( CLK_SX + CLK_WD ))
-  done
-  CLK_GK=$CLK_NEWGK; CLK_PREV=$CLK_CHARS
-}
-clock_pend_draw() { # vẽ các ký tự vừa đổi (sau khi khe đã được xoá trắng)
-  for CLK_P in $CLK_PEND; do
-    CLK_C=${CLK_P#*:}; CLK_WD=$CLK_SW; [ "$CLK_C" = : ] && CLK_WD=$CLK_CW
-    clock_char "${CLK_P%%:*}" $CLK_WD "$CLK_C"
-  done
-}
-clock_chars() { # giờ phút -> "1 1 : 0 2" (không tốn tiến trình)
-  if [ ${#1} -ge 2 ]; then echo "${1%?} ${1#?} : ${2%?} ${2#?}"; else echo "$1 : ${2%?} ${2#?}"; fi
-}
-
 # w_clock X Y R C [căn l|c|r]
 w_clock() {
   X=$1; Y0=$2; BW=$3; BH=$4; al=${5:-l}
@@ -59,7 +17,6 @@ w_clock() {
     vong)  [ $BH -ge 180 ] && [ -f "$DIR/ring/00.png" ] || st=mong ;;
     chu)   [ $BH -ge 110 ] || st=mong ;;
   esac
-  [ "$CLOCK_PART" = 1 ] && case "$st" in kim|kimtg|vong|lat|chu) return 0 ;; esac   # các kiểu này không vẽ từng phần được
   case "$st" in
     kim|kimtg|vong)
       sz=190; [ $st != kim ] && sz=180
@@ -103,22 +60,13 @@ w_clock() {
         *) f=thin; [ $BH -lt 130 ] && f=light ;;
       esac
       ch=$(( BH * 78 / 100 ))
-      # đo bằng ĐÚNG nét sẽ vẽ (độ tương phản Cao đổi Thin -> Light, rộng hơn); khe = chữ số rộng nhất ("0"/"4") + 4%
-      CLK_CHARS=$(clock_chars "${t%%:*}" "$mm"); nd=$(( ${#t} - 1 ))
-      pxv $f $ch; p=$PXV; fkey $f $p; f=$FKEY
-      twv $f $p 0; sw=$TWV; twv $f $p 4; [ $TWV -gt $sw ] && sw=$TWV; sw=$(( sw + sw / 25 )); twv $f $p ":"; cw=$(( TWV + TWV / 5 ))
-      w=$(( nd * sw + cw )); lw=0; [ -n "$lab" ] && lw=$(( ch * 70 / 100 ))
-      if [ $(( w + lw )) -gt $BW ]; then
-        ch=$(( ch * (BW - lw) / (w + lw + 1) )); pxv $f $ch; p=$PXV
-        twv $f $p 0; sw=$TWV; twv $f $p 4; [ $TWV -gt $sw ] && sw=$TWV; sw=$(( sw + sw / 25 )); twv $f $p ":"; cw=$(( TWV + TWV / 5 ))
-        w=$(( nd * sw + cw )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 ))
-      fi
+      # đo bằng ĐÚNG nét sẽ vẽ (độ tương phản Cao đổi Thin -> Light, rộng hơn) để số không tràn khỏi vùng xoá
+      p=$(px_for_cap $f $ch); fkey $f $p; f=$FKEY; twv $f $p "$t"; w=$(( TWV + TWV / 30 )); lw=0
+      [ -n "$lab" ] && lw=$(( ch * 70 / 100 ))
+      if [ $(( w + lw )) -gt $BW ]; then ch=$(( ch * (BW - lw) / (w + 1) )); [ -n "$lab" ] && lw=$(( ch * 70 / 100 )); p=$(px_for_cap $f $ch); twv $f $p "$t"; w=$(( TWV + TWV / 30 )); fi
       case "$al" in c) lx=$(( X + (BW - w - lw) / 2 )) ;; r) lx=$(( X + BW - w - lw )) ;; *) lx=$X ;; esac
       cy=$(( Y0 + (BH - ch) / 2 ))
-      CLK_KIND=modern; CLK_F=$f; CLK_CH=$ch; CLK_CY=$cy; CLK_X0=$lx; CLK_SW=$sw; CLK_CW=$cw
-      CLK_RY=$(( cy - ch / 16 - 2 )); CLK_RH=$(( ch + ch / 8 + 4 )); CLK_NEWGK="m|$st|$f|$ch|$lx|$cy|$sw|$cw|$nd|$lab"
-      clock_slots
-      [ "$CLOCK_PART" = 1 ] && return 0
+      txcap $f $ch $lx $cy "$t"
       [ -n "$lab" ] && txcap semi $(( ch / 7 + 4 )) $(( lx + w + ch / 12 )) $(( cy + ch / 10 )) "$lab" l m ;;
   esac
 }

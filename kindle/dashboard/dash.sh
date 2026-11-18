@@ -648,8 +648,6 @@ draw_clock() { # vẽ vùng đồng hồ (không refresh)
   hh=$(date +%H); mm=$(date +%M); h=${hh#0}; m=${mm#0}
   cs="$CLOCK_STYLE"; [ "$cs" = auto ] && cs=so24
   [ "$CLK_FORCE" = digital ] && case "$cs" in kim|chu|kimtg|vong|lat) cs=so24 ;; esac
-  # CLOCK_PART=1 (chỉ vẽ ký tự đổi): kiểu cũ chỉ hỗ trợ đồng hồ số 24 giờ căn trái; kiểu khác trả về để vẽ lại cả khối
-  if [ "$CLOCK_PART" = 1 ]; then case "$cs" in so12|kim|chu) return 0 ;; so24) [ "$CLK_CENTER" = 1 ] && return 0 ;; esac; fi
   case "$cs" in
     so24|so12|kim|chu) ;;
     *) if modern_ok; then
@@ -679,11 +677,7 @@ draw_clock() { # vẽ vùng đồng hồ (không refresh)
       l1=$(sed -n 1p /tmp/dash_words); l2=$(sed -n 2p /tmp/dash_words)
       txt 60 $(( CLK_Y + 14 )) $(( CLK_X + 10 )) "$l1" b $CLK_W 84
       txt 52 $(( CLK_Y + 96 )) $(( CLK_X + 10 )) "$l2" "" $CLK_W 76 ;;
-    *) # số 24 giờ, phông Noto đậm (chữ số vốn rộng bằng nhau): vẽ từng ký tự vào khe cố định
-       CLK_KIND=legacy; CLK_LPX=$CLK_PX; CLK_LY=$CLK_Y; CLK_X0=$CLK_X
-       CLK_SW=$(( 572 * CLK_PX / 1362 )); CLK_CW=$(( 285 * CLK_PX / 1362 ))
-       CLK_RY=$(( CLK_Y + CLK_PX * 20 / 100 )); CLK_RH=$(( CLK_PX * 64 / 100 )); CLK_NEWGK="l|$CLK_PX|$CLK_Y|$CLK_X"
-       CLK_CHARS=$(clock_chars "$hh" "$mm"); clock_slots ;;
+    *) txt $CLK_PX $CLK_Y $CLK_X "$hh:$mm" b ;;
   esac
 }
 
@@ -865,28 +859,6 @@ clock_region_redraw() { # top left width height lệnh_vẽ...
   [ $_rt -lt 0 ] && _rt=0; [ $_rl -lt 0 ] && _rl=0
   _reg="top=$_rt,left=$_rl,width=$_rw,height=$_rh"
   _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0
-  # Cách 1 (mọi máy): đồng hồ số vẽ theo khe -> chỉ xoá trắng + vẽ lại đúng các khe có ký tự đổi
-  case "$1" in w_clock|draw_clock)
-    CS_FL=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && CS_FL=1
-    CLOCK_PART=1; CLK_PARTIAL=0; "$@"; CLOCK_PART=""
-    if [ "$CLK_PARTIAL" = 1 ]; then
-      [ -n "$CLK_RECTS" ] || return 0                                    # không ký tự nào đổi
-      if [ $CS_FL = 1 ]; then clock_pend_draw                            # mỗi CLOCK_CLEAN_MIN phút: nháy đen riêng các khe đổi cho sạch
-        for CLK_R in $CLK_RECTS; do set -- $(echo "$CLK_R" | tr ':' ' '); refresh 1 "top=$1,left=$2,width=$3,height=$4"; done
-      else
-        for CLK_R in $CLK_RECTS; do IFS=: read -r CLK_A CLK_B CLK_D CLK_E <<CLKEOF
-$CLK_R
-CLKEOF
-          refresh 0 "top=$CLK_A,left=$CLK_B,width=$CLK_D,height=$CLK_E"; done   # 1) hiện khe trắng (xoá nét cũ)
-        clock_pend_draw
-        for CLK_R in $CLK_RECTS; do IFS=: read -r CLK_A CLK_B CLK_D CLK_E <<CLKEOF
-$CLK_R
-CLKEOF
-          refresh 0 "top=$CLK_A,left=$CLK_B,width=$CLK_D,height=$CLK_E"; done   # 2) hiện số mới
-      fi
-      return 0
-    fi ;;
-  esac
   if [ "$FB_CMP" = 1 ] && [ -n "$FB_STRIDE" ] && [ "$DIFF_DRAW" != 1 ] && clock_shape "$@"; then return 0; fi
   box $_rt $_rl $_rw $_rh WHITE
   if [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ]; then
