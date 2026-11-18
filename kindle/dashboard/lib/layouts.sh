@@ -64,6 +64,28 @@ bat_top() { # màu
   [ -n "$BATT" ] || BATT=$(battery); [ -n "$BATT" ] || return 0
   _bt="$BATT%"; [ "$CHARGING" = 1 ] && _bt="$BATT%+"
   tx semi 22 $(( B_STATUS - 22 )) 22 "$_bt" r ${1:-m}
+  # nhớ chỗ + màu để lần sau pin đổi chỉ vẽ lại riêng ô này (bat_fast). Bố cục nền ảnh (Ảnh lớn) thì không.
+  BF_X=$_lx; BF_C=${1:-m}; BF_BG=${TXBG:-WHITE}; BATFAST_OK=0
+  [ "$VIEW" = main ] && [ "$PAGE" = main ] && [ "$ONCE" != 1 ] && [ "$W" -le "$H" ] && BATFAST_OK=1
+  [ "$LAYOUT" = anh ] && layout_active && BATFAST_OK=0
+  return 0
+}
+# Pin đổi 1% (nội dung khác y nguyên): chỉ xoá + vẽ lại chữ "87%" thay vì vẽ ngầm cả màn hình (~460 lệnh -> ~4).
+# Vùng xoá = khung chữ cũ và mới, không bao giờ lấn sang trái quá B_STATUS-72 (dòng ngày ở bên trái kết thúc
+# trước đó) — bản 18.01 xoá rộng tới B_STATUS-140 nên che mất cuối dòng ngày. Không chắc thì trả 1 (vẽ lại như cũ).
+bat_fast() {
+  [ "$BATFAST_OK" = 1 ] && [ "$VIEW" = main ] && [ "$PAGE" = main ] && [ -n "$BF_X" ] || return 1
+  [ $BF_X -ge $(( B_STATUS - 69 )) ] || return 1
+  set_layout; BATT=$BATT_B; BF_ox=$BF_X
+  BF_w=$(( B_STATUS - 18 - (BF_ox - 3) ))
+  rect $(( BF_ox - 3 )) 16 $BF_w 40 "$BF_BG"                 # xoá chữ cũ (chỉ trong khung của nó)
+  TXBG=$BF_BG; [ "$BF_BG" = WHITE ] && TXBG=""
+  bat_top "$BF_C"; TXBG=""                                   # vẽ chữ mới (có nền riêng) -> BF_X mới
+  BF_x0=$BF_ox; [ $BF_X -lt $BF_x0 ] && BF_x0=$BF_X; BF_x0=$(( BF_x0 - 3 ))
+  [ $BF_x0 -ge $(( B_STATUS - 72 )) ] || return 1            # chữ mới dài hơn, sát dòng ngày -> vẽ lại cả màn hình cho chắc
+  BF_w=$(( B_STATUS - 18 - BF_x0 ))
+  refresh 0 "top=16,left=$BF_x0,width=$BF_w,height=40"
+  log "pin $BATT%: chỉ vẽ lại ô pin"
 }
 slot() { echo "$1"; }                           # tiện đọc
 lunar_short() { nh=""; [ "$L_LEAP" = 1 ] && nh=" nhuận"; echo "$L_D/$L_M$nh"; }

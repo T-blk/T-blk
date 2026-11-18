@@ -58,7 +58,11 @@ int main(int argc,char**argv){
        chữ thường có thể xuống tới ~1,2em (đuôi g, y) và lên ~0,18em (dấu tiếng Việt) */
     int caps=1;for(const unsigned char*q=(const unsigned char*)str;*q;q++){if(*q>=0x80||(*q>='a'&&*q<='z')){caps=0;break;}}
     int i0=y+(caps?px*19/100:px*10/100), i1=y+(caps?px*81/100:px*100/100); if(symf){i0=y+px*17/100;i1=y+px*82/100;} if(center){i0=y;i1=y+h;} if(i1>y+h)i1=y+h; if(i0<y)i0=y;
-    for(int j=i0;j<i1;j++)for(int i=x;i<x+w;i++)if(((i*7+j*13+hs)%5)==0)fb[j*S+i]=f;
+    /* mỗi ký tự một "nét" riêng (theo mã ký tự + vị trí trong ô của nó): đổi 1 chữ số chỉ đổi ô chữ số đó */
+    unsigned cps[512];int nc=0;for(const unsigned char*q=(const unsigned char*)str;*q&&nc<512;){unsigned c=*q;int l=1;if(c>=0xF0){l=4;}else if(c>=0xE0){l=3;}else if(c>=0xC0){l=2;}unsigned v=0;for(int t=0;t<l&&q[t];t++)v=v*256+q[t];cps[nc++]=v;q+=l;}
+    (void)hs; int x0t=x; if(nc<1)nc=1;
+    for(int j=i0;j<i1;j++)for(int i=x;i<x+w;i++){int k=(i-x0t)*nc/(w>0?w:1);if(k>=nc)k=nc-1;int cs=x0t+k*w/nc;unsigned hc=cps[k]*2654435761u;
+      if(cps[k]==' ')continue; int li=i-cs; if((((unsigned)(li*7+(j-y)*13)+hc)%5)==0 && li>1)fb[j*S+i]=f;}
     if(!kreg&&!clear){rx=x;ry=y;rw=w;rh=h;}did=1;}
   if(dos){if(sreg){ry=kv(sreg,"top",0);rx=kv(sreg,"left",0);rw=kv(sreg,"width",W);rh=kv(sreg,"height",H);}else{rx=0;ry=0;rw=W;rh=H;}refresh(rx,ry,rw,rh,flash);}
   else if(did&&!nb){if(clear){rx=0;ry=0;rw=W;rh=H;}refresh(rx,ry,rw,rh,flash);}

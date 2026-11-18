@@ -19,7 +19,7 @@ load_conf() {
   : "${SCHEDULE:=0}" "${AUTO_MEET:=0}" "${REMOTE:=0}" "${DEEP_SLEEP:=0}" "${DEEP_SLEEP_MIN:=30}"
   : "${CLOCK_CLEAN_MIN:=10}" "${HOME_REPAINT:=chuyen}" "${CONTRAST:=cao}" "${HOME_MODE:=nhanh}" "${WIFI_SAVE:=1}" "${STATUS_DIM:=1}" "${LIGHT_IDLE_MIN:=30}"
   : "${LAYOUT:=codien}" "${EVENT_STYLE:=auto}" "${PHOTO_STYLE:=auto}"
-  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_CLEAN:=dem}" "${DIFF_REFRESH:=1}" "${LOW_BATTERY:=5}"
+  : "${WEATHER_ICON:=1}" "${WEATHER_MIN:=30}" "${CALENDAR_MIN:=30}" "${FULL_CLEAN:=dem}" "${DIFF_REFRESH:=1}" "${LOW_BATTERY:=5}" "${OPT_NEW:=1}"
 }
 load_conf
 
@@ -110,6 +110,7 @@ DASH_VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 . "$DIR/lib/schedule.sh"
 . "$DIR/lib/remote.sh"
 . "$DIR/lib/sleep.sh"
+. "$DIR/lib/opt.sh"
 modern_ok && mw_load
 UPD_AVAIL=""; UPD_NOTES=""; UPD_MSG=""
 
@@ -415,21 +416,28 @@ fb_stride() { # chỉ dùng khi bộ nhớ màn hình xếp đúng theo chiều 
   case "$FB_STRIDE$_bpp" in ''|*[!0-9]*) FB_STRIDE=""; return ;; esac
   _row=$(( W * _bpp / 8 )); [ "$FB_STRIDE" -ge $_row ] && [ "$FB_STRIDE" -le $(( _row + 128 )) ] || FB_STRIDE=""
   [ -n "$FB_STRIDE" ] && fb_probe
-  log "quét vùng đổi: ${FB_STRIDE:+bật (stride $FB_STRIDE, đảo $FB_FLIP)}${FB_STRIDE:-tắt (bộ nhớ màn hình không khớp chiều xoay)}"
+  if [ -n "$FB_STRIDE" ]; then log "quét vùng đổi: bật (stride $FB_STRIDE, lật dọc $FB_FLIP ngang $FB_FLIPX · cmp: -l $CMP_L, bỏ qua $CMP_SKIP/$CMP_REL)"
+  else log "quét vùng đổi: tắt (bộ nhớ màn hình không khớp chiều xoay)"; fi
 }
 fb_probe() { # tô ngầm 4 hàng trên cùng (không làm mới), xem bộ nhớ đổi ở đầu hay cuối -> FB_FLIP; rồi trả lại như cũ
   _b=$(( FB_STRIDE * 4 )); _last=$(( H / 4 - 1 ))
   dd if="$FBDEV" of=/tmp/dash_p0 bs=$_b count=1 2>/dev/null; dd if="$FBDEV" of=/tmp/dash_p1 bs=$_b skip=$_last count=1 2>/dev/null
   _a0=$(cksum < /tmp/dash_p0); _a1=$(cksum < /tmp/dash_p1)
-  for _col in BLACK WHITE; do
-    "$FB" -q -b -B $_col -k "top=0,left=0,width=$W,height=4" >/dev/null 2>&1
-    _c0=$(dd if="$FBDEV" bs=$_b count=1 2>/dev/null | cksum); _c1=$(dd if="$FBDEV" bs=$_b skip=$_last count=1 2>/dev/null | cksum)
+  for _col in BLACK WHITE; do                 # ô nhỏ 8x4 ở góc trên-TRÁI: biết cả lật dọc lẫn lật ngang
+    "$FB" -q -b -B $_col -k "top=0,left=0,width=8,height=4" >/dev/null 2>&1
+    dd if="$FBDEV" of=/tmp/dash_q0 bs=$_b count=1 2>/dev/null; dd if="$FBDEV" of=/tmp/dash_q1 bs=$_b skip=$_last count=1 2>/dev/null
+    _c0=$(cksum < /tmp/dash_q0); _c1=$(cksum < /tmp/dash_q1)
     [ "$_c0" != "$_a0" ] || [ "$_c1" != "$_a1" ] && break
   done
   dd if=/tmp/dash_p0 of="$FBDEV" bs=$_b conv=notrunc 2>/dev/null; dd if=/tmp/dash_p1 of="$FBDEV" bs=$_b seek=$_last conv=notrunc 2>/dev/null
-  if [ "$_c0" != "$_a0" ]; then FB_FLIP=0
-  elif [ "$_c1" != "$_a1" ]; then FB_FLIP=1
+  FB_FLIPX=1; _o=""                            # chưa biết chắc thì coi như lật ngang (tắt các phần cần biết cột)
+  if [ "$_c0" != "$_a0" ]; then FB_FLIP=0; _o=$(cmp /tmp/dash_p0 /tmp/dash_q0 2>/dev/null)
+  elif [ "$_c1" != "$_a1" ]; then FB_FLIP=1; _o=$(cmp /tmp/dash_p1 /tmp/dash_q1 2>/dev/null)
   else FB_STRIDE=""; log "quét vùng đổi: không dò được bộ nhớ màn hình -> tắt"; fi
+  set -- $_o; _o=${5%,}
+  case "$_o" in ''|*[!0-9]*) ;; *) [ $(( (_o - 1) % FB_STRIDE )) -lt $(( W / 2 )) ] && FB_FLIPX=0 ;; esac
+  rm -f /tmp/dash_p0 /tmp/dash_p1 /tmp/dash_q0 /tmp/dash_q1
+  cmp_probe
 }
 fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
   _bs=$(( FB_STRIDE * BAND )); _nb=$(( (H + BAND - 1) / BAND )); _i=0
@@ -437,16 +445,23 @@ fb_sums() { # -> một dòng tổng kiểm tra mỗi dải
 }
 diff_draw() { # vẽ lại nhưng chỉ quét các dải đổi; trả 1 nếu không làm được (khi đó gọi draw bình thường)
   [ -n "$FB_STRIDE" ] && [ -r "$FBDEV" ] || return 1
-  fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1
+  DD_NEW=0; opt_on && [ "$CMP_SKIP" = 1 ] && dd if="$FBDEV" of=/tmp/dash_fa bs=$FB_STRIDE count=$H 2>/dev/null && DD_NEW=1
+  [ $DD_NEW = 1 ] || { fb_sums > /tmp/dash_sums_a 2>/dev/null || return 1; }
   DIFF_FULL=0; DIFF_IMGS=""; DIFF_DRAW=1; draw 0; DIFF_DRAW=0
   _inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && _inv="-H"
   [ "$_inv" != "$SHOWN_INV" ] && DIFF_FULL=1    # vừa bật/tắt đảo màu ban đêm: nội dung giống nhưng màn hình phải đổi hết
   _hr=${NOW_YMDH:-x}; [ "$_hr" != "$RESYNC_H" ] && { RESYNC_H=$_hr; [ -n "$RESYNC_DONE" ] && DIFF_FULL=1; RESYNC_DONE=1; }   # mỗi giờ 1 lần: đồng bộ lại cả màn hình (không nháy)
-  if [ "$DIFF_FULL" = 1 ]; then refresh 0; log "quét: toàn màn hình, không nháy (ảnh nền mới / đảo màu / đồng bộ mỗi giờ)"; return 0; fi
+  if [ "$DIFF_FULL" = 1 ]; then rm -f /tmp/dash_fa; refresh 0; log "quét: toàn màn hình, không nháy (ảnh nền mới / đảo màu / đồng bộ mỗi giờ)"; return 0; fi
+  if [ $DD_NEW = 1 ]; then                    # cách mới: vài lệnh cmp thay cho 64 lệnh dd|cksum
+    if dd if="$FBDEV" of=/tmp/dash_fb2 bs=$FB_STRIDE count=$H 2>/dev/null && cmp_bands /tmp/dash_fa /tmp/dash_fb2; then _runs=$CB_RUNS
+    else rm -f /tmp/dash_fa /tmp/dash_fb2; refresh 0; log "quét: không so được -> làm mới cả màn hình (không nháy)"; return 0; fi
+    rm -f /tmp/dash_fa /tmp/dash_fb2
+  else
   fb_sums > /tmp/dash_sums_b 2>/dev/null
   _runs=$(awk -v B=$BAND -v H=$H 'NR == FNR { a[FNR] = $0; next }
       { if (a[FNR] != $0) { if (s == "") s = FNR; e = FNR } else if (s != "") { printf "%d:%d ", (s-1)*B, (e-s+1)*B; s = "" } }
       END { if (s != "") printf "%d:%d ", (s-1)*B, (e-s+1)*B }' /tmp/dash_sums_a /tmp/dash_sums_b)
+  fi
   _tot=0; for _r in $_runs; do _tot=$(( _tot + ${_r#*:} )); done
   if [ $_tot -ge $(( H * 7 / 10 )) ]; then refresh 0; log "quét: gần hết màn hình ($_tot hàng)"; return 0; fi
   [ -z "$_runs$DIFF_IMGS" ] && { log "quét: không có gì đổi"; return 0; }
@@ -522,16 +537,17 @@ MOFF=0; EVPAGE=0; PHOFF=0; VIEW=main; LADJ=0; LAST_TOUCH=0; LIGHT_NOW=""; NIGHT_
 LAST_KEY=""; NFULL=0
 
 is_night() {
-  h=$(date +%H); h=${h#0}
+  if opt_on && [ -n "$NOW_YMDH" ]; then h=${NOW_YMDH#????????}; else h=$(date +%H); fi; h=${h#0}; [ -z "$h" ] && h=0
   if [ "$NIGHT_START" -gt "$NIGHT_END" ]; then [ "$h" -ge "$NIGHT_START" ] || [ "$h" -lt "$NIGHT_END" ]
   else [ "$h" -ge "$NIGHT_START" ] && [ "$h" -lt "$NIGHT_END" ]; fi
 }
-light_level() {
-  if [ "${LIGHT_IDLE_MIN:-0}" -gt 0 ] && [ "$CHARGING" != 1 ] && [ -n "$LAST_ACT" ] && [ $(( ${NOWE:-0} - LAST_ACT )) -ge $(( LIGHT_IDLE_MIN * 60 )) ]; then echo 0; return; fi
-  [ "$VIEW" = status ] && [ "${STATUS_DIM:-1}" = 1 ] && status_away "$ST_ID" && { echo 0; return; }
-  l="$LIGHT_DAY"; is_night && l="$LIGHT_NIGHT"
-  [ -z "$l" ] && { echo ""; return; }
-  l=$(( l + LADJ )); [ $l -lt 0 ] && l=0; [ $l -gt 24 ] && l=24; echo "$l"
+light_level() { light_calc; echo "$LL"; }
+light_calc() { # -> LL = mức đèn nên đặt ("" = không đụng tới đèn); không tạo tiến trình con
+  if [ "${LIGHT_IDLE_MIN:-0}" -gt 0 ] && [ "$CHARGING" != 1 ] && [ -n "$LAST_ACT" ] && [ $(( ${NOWE:-0} - LAST_ACT )) -ge $(( LIGHT_IDLE_MIN * 60 )) ]; then LL=0; return; fi
+  [ "$VIEW" = status ] && [ "${STATUS_DIM:-1}" = 1 ] && status_away "$ST_ID" && { LL=0; return; }
+  LL="$LIGHT_DAY"; is_night && LL="$LIGHT_NIGHT"
+  [ -z "$LL" ] && return
+  LL=$(( LL + LADJ )); [ $LL -lt 0 ] && LL=0; [ $LL -gt 24 ] && LL=24
 }
 # Nút ☀ trên thanh trên cùng: mỗi lần chạm lên một mức, quá mức cao nhất thì về tắt
 light_cycle() {
@@ -543,7 +559,7 @@ light_cycle() {
 set_light() {
   n=0; is_night && n=1
   [ "$n" != "$NIGHT_WAS" ] && { LADJ=0; NIGHT_WAS=$n; }
-  l=$(light_level)
+  light_calc; l=$LL
   [ -z "$l" ] || [ "$l" = "$LIGHT_NOW" ] && return 0
   if lipc-set-prop com.lab126.powerd flIntensity "$l" 2>/dev/null; then :
   else
@@ -735,11 +751,13 @@ ev_soon() { # có sự kiện đang diễn ra / sắp tới trong 3 giờ -> c�
   set -- $(date '+%H %M'); _nm=$(( 1$1 % 100 * 60 + 1$2 % 100 ))
   awk -F'|' -v TD="$TD" -v N="$_nm" '{ split($1, k, ":") } $2 == TD && $4 == 0 && $3 + k[2] > N && $3 < N + 180 { f = 1 } END { exit !f }' "$EV" && EV_SOON=1
 }
-screen_sig() {
-  _p=""; [ "$PHOTO_MODE" != fixed ] && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
+screen_sig() { sig_calc; echo "$SIG"; }
+sig_calc() { # -> SIG: "chữ ký" nội dung màn hình; đổi = phải vẽ lại (không tạo tiến trình con)
+  _p=""; [ "$PHOTO_MODE" != fixed ] && uses_photo && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
   _q=""; [ "$EV_SOON" = 1 ] && _q=$(( mnow / 15 ))
   _n=0; is_night && _n=1
-  echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$BATT_B$CHARGING|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
+  _b="$BATT_B$CHARGING"; opt_on && _b=""         # tối ưu mới: pin xử lý riêng trong vòng chính (bat_fast)
+  SIG="$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$_b|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
 }
 
 # Sự kiện: chỉ đọc lại file .ics khi lịch vừa tải về hoặc khoảng ngày đổi (đỡ tốn CPU mỗi lần vẽ)
@@ -849,8 +867,9 @@ clock_region_redraw() { # top left width height lệnh_vẽ...
   _rt=$(( $1 - 6 )); _rl=$(( $2 - 8 )); _rw=$(( $3 + 16 )); _rh=$(( $4 + 12 )); shift 4   # vùng xoá rộng hơn chữ số một chút
   [ $_rt -lt 0 ] && _rt=0; [ $_rl -lt 0 ] && _rl=0
   _reg="top=$_rt,left=$_rl,width=$_rw,height=$_rh"
+  if opt_on && [ -n "$mnow" ]; then _m=$mnow; else _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0; fi
+  clock_shape "$@" && return 0              # chỉ vẽ lại chữ số đổi (lib/opt.sh); không được thì làm như cũ
   box $_rt $_rl $_rw $_rh WHITE
-  _m=$(date +%M); _m=${_m#0}; [ -z "$_m" ] && _m=0
   if [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ]; then
     "$@"; refresh 1 "$_reg"                 # nháy đen riêng vùng giờ: sạch hoàn toàn
   else
@@ -900,6 +919,8 @@ LIGHT_DAY|Đèn ban ngày|0=Tắt;2=2;4=4;6=6;8=8;10=10;12=12;16=16;20=20;24=24
 LIGHT_NIGHT|Đèn ban đêm|0=Tắt;1=1;2=2;4=4;6=6;8=8
 NIGHT_INVERT|Đảo màu ban đêm|0=Tắt;1=Bật (thử)
 REFRESH_MIN|Cập nhật giờ mỗi|1=1 phút;2=2 phút;5=5 phút;10=10 phút
+@ECO|Dùng gợi ý tiết kiệm pin…|
+OPT_NEW|Tối ưu pin mới (bản 18.03)|1=Bật;0=Tắt (chạy như bản 18.02)
 HOME_MODE|Thoát về Home|nhanh=Nhanh (~2 giây);antoan=An toàn (~30 giây)
 HOME_REPAINT|Khi về Home, làm mới Kindle|chuyen=Chuyển trang (~3 giây);nguon=Thêm ngủ rồi dậy (~7 giây, chắc nhất);0=Không
 DEEP_SLEEP|Ngủ sâu ban đêm|0=Tắt;1=Bật (thử nghiệm)
@@ -1010,6 +1031,7 @@ settings_tap() { # x y
     @REMOTE) VIEW=remote; return ;; @DIAG) VIEW=diag; return ;; @CALIB) VIEW=calib; return ;;
     @RECV) recv_start; VIEW=recv; return ;;
     @SLEEPTEST) deep_test; return ;;
+    @ECO) eco_apply; return ;;
     @SCHEDVIEW) MSG_TEXT=$( [ "$SCHEDULE" = 0 ] && echo "Chưa bật lịch tự đổi giao diện." || sched_preset "$SCHEDULE" | sed 's/layout/bố cục/;s/status/trạng thái/;s/back/thoát trạng thái/;s/page/trang/' | tr '\n' ';' | sed 's/;/ · /g'); MSG_TIME=$(date +%H:%M); MSG_PREV=main; VIEW=msg; return ;;
   esac
   if [ "$key" = "@PICK" ]; then VIEW=pick; PICKPAGE=0; return; fi
@@ -1281,6 +1303,7 @@ confirm_check() { # hết giờ mà chưa xác nhận -> quay lại hướng cũ
 }
 
 draw() {
+  BATFAST_OK=0                                   # bat_top bật lại nếu lần vẽ này có ô % pin vẽ được riêng
   if [ -n "$SERVER_URL" ]; then render_server "$1"; return; fi
   case "$VIEW" in
     photo) render_photo ;; settings) render_settings ;; pick) render_pick ;; confirm) render_confirm ;; calib) render_calib ;; update) render_update ;; choose) render_choose ;;
@@ -1407,6 +1430,7 @@ process_taps() {
   fwb=0; ensure_fw_stopped && fwb=1
   [ -s "$TAPQ" ] || return $(( 1 - fwb ))
   mv "$TAPQ" "$TAPQ.work" 2>/dev/null || return 1
+  set -- $(date '+%Y%m%d%H %M %s'); NOW_YMDH=$1; mnow=${2#0}; NOWE=$3   # giờ hiện tại cho các phần vẽ khi chạm
   while read -r tx ty sx1 sy1 sx2; do
     if [ "$tx" = S ]; then handle_swipe "$ty" "$sx1" "$sy1" "$sx2"
     elif [ "$tx" = C ]; then handle_cmd "$ty" "$sx1" "$sy1"
@@ -1497,9 +1521,14 @@ while true; do
   set_light
   # Chỉ vẽ lại toàn màn hình khi NỘI DUNG thật sự đổi (thời tiết, lịch, ngày, ảnh, pin, trang…) hoặc có chạm;
   # còn lại chỉ vẽ lại ô đồng hồ. Màn hình phụ (Cài đặt, lời nhắn…) chỉ vẽ lại khi chạm.
-  key=$(screen_sig)
+  sig_calc; key=$SIG
   case "$PAGE" in tin|news) key="$key.$(( mnow / NEWS_ROTATE_MIN ))" ;; pomo) pomo_running && key="$key.$mnow" ;; esac
   CLEAN_NOW=0; [ "$VIEW" = main ] && clean_due && CLEAN_NOW=1
+  BK="$BATT_B$CHARGING"                          # pin đổi mà nội dung khác y nguyên -> chỉ vẽ lại ô pin
+  if opt_on && [ "$VIEW" = main ] && [ $TAPPED = 0 ] && [ -n "$LAST_BK" ] && [ "$BK" != "$LAST_BK" ] && [ "$key" = "$LAST_KEY" ]; then
+    if [ $CLEAN_NOW = 0 ] && [ "$BATFAST_OK" = 1 ] && bat_fast; then LAST_BK=$BK
+    else LAST_KEY="pin$LAST_KEY"; fi             # không vẽ riêng được -> vẽ lại như cũ (quét vùng đổi, không nháy)
+  fi
   if [ "$VIEW" = status ]; then
     key=$(status_key)
     if [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ]; then
@@ -1515,7 +1544,7 @@ while true; do
     [ $full = 1 ] && CLEAN_AT=$NOWE
     if [ $full = 0 ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "${DIFF_REFRESH:-1}" = 1 ] && [ -z "$SERVER_URL" ] && [ -n "$FB_STRIDE" ] && { update_clock; diff_draw; }; then :   # giờ vẽ sạch trước (xoá trắng rồi vẽ), vùng khác chỉ quét chỗ đổi
     else draw $full; fi
-    LAST_KEY="$key"; stat_full; LAST_VIEW=$VIEW
+    LAST_KEY="$key"; LAST_BK=$BK; stat_full; LAST_VIEW=$VIEW
     [ "$VIEW" = main ] && ev_soon
     [ -z "$DRAWN" ] && { DRAWN=1; log "first draw ok"; rm -f "$DIR/.boot_try"; }
   else
