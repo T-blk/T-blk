@@ -28,7 +28,7 @@ rescue() { # lý do
 }
 
 log "bắt đầu canh dashboard (pid $DPID, kiểm tra mỗi ${INT}s, kẹt nếu trễ ${GRACE}s)"
-stale=0
+stale=0; tmiss=0
 while :; do
   sleep "$INT"
   # đang cập nhật phần mềm (dashboard cố ý thoát để bản mới tiếp quản) -> chờ, tối đa 15 phút
@@ -48,6 +48,16 @@ while :; do
     fi
     exit 0
   fi
+  # Bộ đọc cảm ứng + nút nguồn (touch.sh) mà chết thì dashboard vẫn chạy bình thường nhưng KHÔNG chạm được và nút
+  # nguồn không về Home được -> máy như bị treo. Mất 2 lần kiểm tra liền (~1 phút) thì mở lại.
+  if [ ! -f /tmp/dash_stop ] && ! pgrep -f "$DIR/touch.sh" >/dev/null 2>&1; then
+    tmiss=$(( tmiss + 1 ))
+    if [ $tmiss -ge 2 ]; then
+      log "bộ đọc cảm ứng/nút nguồn không còn chạy -> mở lại"; echo "$(date '+%F %T') mở lại touch.sh" >> "$DIR/hang.log"
+      sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
+      tmiss=0
+    fi
+  else tmiss=0; fi
   [ -f /tmp/dash_sleeping ] && { stale=0; continue; }                 # đang ngủ sâu có chủ đích
   w=$(cat /tmp/dash_woke 2>/dev/null); now=$(date +%s)
   [ -n "$w" ] && [ $(( now - w )) -lt 180 ] && { stale=0; continue; }  # vừa dậy sau ngủ sâu: chờ dashboard ghi lại

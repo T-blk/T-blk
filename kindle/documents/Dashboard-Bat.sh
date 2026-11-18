@@ -4,6 +4,12 @@
 # An toàn: hiện chữ NGAY khi chạm (khỏi chạm lại); chạm thừa trong lúc đang mở bị bỏ qua; nếu dashboard đang
 # chạy thì dừng hẳn bản cũ rồi mới mở bản mới (không bao giờ có 2 bản chạy cùng lúc).
 D=/mnt/us/dashboard
+# Cập nhật bị ngắt giữa chừng (hết pin, giữ nút nguồn…) có thể để lại thư mục dashboard.old mà thiếu dashboard -> khôi phục
+if [ ! -f "$D/dash.sh" ] && [ -f /mnt/us/dashboard.old/dash.sh ]; then
+  [ -d "$D" ] && mv "$D" /mnt/us/dashboard.broken.$$
+  mv /mnt/us/dashboard.old "$D" && echo "$(date '+%F %T') khôi phục dashboard từ dashboard.old (cập nhật bị ngắt)" >> "$D/hang.log"
+  sync
+fi
 mkdir /tmp/dash_bat.lock 2>/dev/null || exit 0          # một lần chạm khác đang xử lý -> bỏ qua
 trap 'rm -rf /tmp/dash_bat.lock' EXIT
 F=/tmp/dash_fbink; [ -x "$F" ] || { cp "$D/bin/fbink" "$F" 2>/dev/null && chmod +x "$F"; }

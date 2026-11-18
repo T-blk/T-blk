@@ -1478,6 +1478,7 @@ pkill -f "$DIR/touch.sh" 2>/dev/null
 sh "$DIR/touch.sh" >> "$DIR/dash.log" 2>&1 &
 pkill -f "$DIR/lib/watchdog.sh" 2>/dev/null
 DIR="$DIR" sh "$DIR/lib/watchdog.sh" $$ >> "$DIR/dash.log" 2>&1 &     # tự trả lại giao diện Kindle nếu dashboard kẹt
+WD_PID=$!
 remote_init
 # Bỏ viền hoa văn trang trí (một lần, theo yêu cầu): vẫn bật lại được trong Cài đặt > Giao diện
 [ -f "$DIR/.mig_noorn" ] || { save_setting ORNAMENT 0; ORNAMENT=0; touch "$DIR/.mig_noorn"; }
@@ -1504,6 +1505,8 @@ while true; do
   set -- $(date '+%Y%m%d%H %M %S %s'); NOW_YMDH=$1; mnow=${2#0}; NOW_SEC=${3#0}; NOWE=$4
   echo $(( NOWE + ${WD_WORK:-600} )) > /tmp/dash_alive    # còn sống; vòng này (tải dữ liệu, vẽ…) phải xong trong 10 phút
   LOOPN=$(( ${LOOPN:-0} + 1 ))
+  if [ $(( LOOPN % 3 )) = 0 ]; then case "$(proc_state "$WD_PID")" in ''|Z|X)   # bộ canh gác chết -> mở lại
+    log "bộ canh gác không còn chạy -> mở lại"; DIR="$DIR" sh "$DIR/lib/watchdog.sh" $$ >> "$DIR/dash.log" 2>&1 & WD_PID=$! ;; esac; fi
   b=""; if [ $(( LOOPN % 5 )) = 1 ]; then b=$(battery); CHARGING=0; is_charging && CHARGING=1; [ -n "$b" ] && BATT_B=$b; fi   # pin: mỗi 5 vòng
   if [ -n "$b" ] && [ "$b" -le "$LOW_BATTERY" ]; then
     "$FB" -q -c -m -M -t "regular=$BOLD,px=40" "PIN YẾU – HÃY SẠC KINDLE ($b%)" >/dev/null 2>&1 \
