@@ -9,9 +9,10 @@ def state(save):
         k,_,v=l.rstrip('\n').partition(' ')
         if k!='H': d[k]=v
     return d
+import tempfile; TMP=tempfile.mkdtemp(prefix='chessref')   # ván thử ghi vào thư mục tạm, không để lại trong kho mã
 bad=0; res={}; total=0
 for g in range(games):
-    save=f'ref{g}.save'; open(save,'w').close()
+    save=os.path.join(TMP,f'ref{g}.save'); open(save,'w').close()
     lw,lb=random.choice([(3,2),(2,3),(3,1),(1,2),(3,3),(1,1),(2,2)])
     eng('new',save,NMODE='ai',NLV=lw,NPC='b')
     pos=pc.start(); plies=0; err=''
