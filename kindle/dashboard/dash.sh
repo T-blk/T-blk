@@ -391,7 +391,8 @@ refresh() { # $1 = 1 nháy đen; $2 = vùng (top=..,left=..,width=..,height=..)
 # Máy không có "cmp -l" thì quay về cách cũ: so từng dải 32 hàng bằng cksum.
 FBDEV=${FBDEV:-/dev/fb0}; BAND=32
 fb_stride() { # chỉ dùng khi bộ nhớ màn hình xếp đúng theo chiều đang hiển thị (mỗi hàng ~ W điểm ảnh)
-  FB_STRIDE=$(cat /sys/class/graphics/fb0/stride 2>/dev/null); _bpp=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
+  _fs=${FB_SYS:-/sys/class/graphics/fb0}       # (FB_SYS: chỉ đổi khi chạy thử trên máy tính)
+  FB_STRIDE=$(cat "$_fs/stride" 2>/dev/null); _bpp=$(cat "$_fs/bits_per_pixel" 2>/dev/null)
   case "$FB_STRIDE$_bpp" in ''|*[!0-9]*) FB_STRIDE=""; return ;; esac
   _row=$(( W * _bpp / 8 )); [ "$FB_STRIDE" -ge $_row ] && [ "$FB_STRIDE" -le $(( _row + 128 )) ] || FB_STRIDE=""
   [ -n "$FB_STRIDE" ] && fb_probe
@@ -497,7 +498,7 @@ image() {
   eips -g "$1" -x "$2" -y "$3" >/dev/null 2>&1 || log "eips image failed: $1"
   IMG_USED=1
   # vẽ ngầm: eips đã tự làm mới vùng ảnh khi chữ phủ lên chưa vẽ -> ghi lại vùng để quét lại lúc cuối
-  [ "$DIFF_DRAW" = 1 ] && { set -- "$1" "$2" "$3" $(od -An -tu1 -j16 -N8 "$1" 2>/dev/null)
+  [ "$DIFF_DRAW" = 1 ] && { set -- "$1" "$2" "$3" $(png_bytes "$1")
     [ $# -ge 11 ] && DIFF_IMGS="$DIFF_IMGS $3:$2:$(( $5 * 65536 + $6 * 256 + $7 )):$(( $9 * 65536 + ${10} * 256 + ${11} ))"; }
 }
 
@@ -744,6 +745,7 @@ ev_soon() { # có sự kiện đang diễn ra / sắp tới trong 3 giờ -> c�
 }
 screen_sig() {
   _p=""; [ "$PHOTO_MODE" != fixed ] && _p=$(( ${NOWE:-0} / (${PHOTO_MIN:-60} * 60) + PHOFF ))
+  [ "$PAGE" = main ] && layout_active && case "$LAYOUT" in the|anh) ;; *) _p="" ;; esac   # bố cục không có ảnh: đến giờ đổi ảnh cũng không cần vẽ lại
   _q=""; [ "$EV_SOON" = 1 ] && _q=$(( mnow / 15 ))
   _n=0; is_night && _n=1
   echo "$PAGE|$MOFF|$EVPAGE|${NOW_YMDH%??}|$_n|$WX_SIG|$CAL_SIG|$_p|$_q|$LOCK_NOW|$UPD_AVAIL|$LAYOUT"
@@ -871,12 +873,15 @@ clock_region_redraw() { # top left width height lệnh_vẽ...
 clock_shape() { # lệnh_vẽ... (dùng _rt _rl _rw _rh _m của clock_region_redraw)
   _mr0=$_rt; [ "$FB_FLIP" = 1 ] && _mr0=$(( H - _rt - _rh )); [ $_mr0 -lt 0 ] && _mr0=0   # chỉ chụp dải hàng chứa đồng hồ
   dd if="$FBDEV" of=/tmp/dash_ca bs=$FB_STRIDE skip=$_mr0 count=$_rh 2>/dev/null || return 1
+  CS_T=$_rt; CS_H=$_rh; CS_M0=$_mr0                  # tên riêng: lệnh vẽ "$@" gọi nhiều hàm dùng biến _ngắn
+  CS_FL=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && CS_FL=1
   box $_rt $_rl $_rw $_rh WHITE; IMG_USED=0; "$@"
+  _rt=$CS_T; _rh=$CS_H; _mr0=$CS_M0
   dd if="$FBDEV" of=/tmp/dash_cb bs=$FB_STRIDE skip=$_mr0 count=$_rh 2>/dev/null || return 1
   cmp -l /tmp/dash_ca /tmp/dash_cb 2>/dev/null | head -n 200000 | \
     awk -v S=$FB_STRIDE -v W=$W -v H=$H -v T=8 -v R0=$_mr0 -v FX=${FB_FLIPX:-0} -v FY=${FB_FLIP:-0} -v MAXR=4 -v CAP=200000 -f "$DIR/lib/fbdiff.awk" > /tmp/dash_crects
   grep -q FULL /tmp/dash_crects && return 1
-  _fl=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && _fl=1
+  _fl=$CS_FL
   while read -r _t _l _w _h; do
     [ -n "$_h" ] || continue
     _t=$(( _t - 2 )); _l=$(( _l - 2 )); _w=$(( _w + 4 )); _h=$(( _h + 4 ))     # chừa viền cho sạch nét cũ
@@ -1108,7 +1113,7 @@ render_choose() {
       if [ "$k" = "$cur" ]; then frame $(( y + 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 8 )) 4; st=b; else frame $(( y + 4 )) $(( x + 4 )) $(( CW2 - 8 )) $(( CRH - 8 )) 1; st=""; fi
       th="$DIR/ui/${CH_KEY}_$k.png"
       if [ -f "$th" ]; then
-        set -- $(od -An -tu1 -j16 -N8 "$th" 2>/dev/null)       # kích thước PNG từ IHDR
+        set -- $(png_bytes "$th")                                # kích thước PNG từ IHDR
         if [ $# -ge 8 ]; then tw_=$(( $3 * 256 + $4 )); th_=$(( $7 * 256 + $8 )); else tw_=300; th_=$(( CRH - 60 )); fi
         image "$th" $(( x + (CW2 - tw_) / 2 )) $(( y + 12 + (CRH - 54 - th_) / 2 ))
       else
@@ -1540,7 +1545,7 @@ while true; do
   CLEAN_NOW=0; [ "$VIEW" = main ] && clean_due && CLEAN_NOW=1
   BK="$BATT_B$CHARGING"                          # pin đổi mà nội dung khác y nguyên -> chỉ vẽ lại ô pin
   if [ "$VIEW" = main ] && [ $TAPPED = 0 ] && [ -n "$LAST_BK" ] && [ "$BK" != "$LAST_BK" ] && [ "$key" = "$LAST_KEY" ]; then
-    if bat_fast "$BATT_B"; then LAST_BK=$BK; else LAST_KEY=""; fi
+    if bat_fast "$BATT_B"; then LAST_BK=$BK; else BAT_REDRAW=1; fi     # bố cục không vẽ riêng ô pin được -> vẽ lại theo cách quét vùng (không nháy)
   fi
   if [ "$VIEW" = status ]; then
     key=$(status_key)
@@ -1551,7 +1556,8 @@ while true; do
     GAME_INCR=""; [ $TAPPED = 0 ] && [ "$VIEW" = sudoku ] && su_tick                 # Sudoku tự vẽ phần đổi khi chạm; không chạm: chỉ cập nhật đồng hồ
   elif [ "$VIEW" != main ] && [ $TAPPED = 0 ] && [ "$VIEW" = "$LAST_VIEW" ] && [ "$VIEW" != confirm ]; then
     :                                                      # màn hình phụ, không chạm: giữ nguyên, không quét
-  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ $CLEAN_NOW = 1 ] || [ -n "$SERVER_URL" ]; then
+  elif [ "$VIEW" != main ] || [ $TAPPED = 1 ] || [ "$key" != "$LAST_KEY" ] || [ "$PAGE" != "$LAST_PAGE" ] || [ $CLEAN_NOW = 1 ] || [ "$BAT_REDRAW" = 1 ] || [ -n "$SERVER_URL" ]; then
+    BAT_REDRAW=""
     [ "$key" != "$LAST_KEY" ] && [ $TAPPED = 0 ] && [ -n "$LAST_KEY" ] && log "nội dung đổi -> vẽ lại"
     LAST_PAGE="$PAGE"
     full=0; [ -z "$LAST_KEY" ] && full=1                    # lần vẽ đầu: nháy sạch 1 lần

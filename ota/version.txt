@@ -1,8 +1,8 @@
-version=2026.11.17.32
-sha256=117c82e16e6848a36ecff4f9119d688b67090e8a15b227221dd56109a88dacd6
-size=4843070
-core_sha=3b91d9afbe7a47c07bb672e68440ffbc5e6d4a863f0b74d75609a068bbc96eff
-core_size=413961
+version=2026.11.18.01
+sha256=a010e32386ff511a7ceef85eb51ef8016bf03d359e65482f7f8f459bbf08616b
+size=4846023
+core_sha=de776f710832d7344d7543bf91f80a2d822b0b36fc54ff44f1ffa28103f2bfb5
+core_size=415866
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Đồng hồ chỉ chụp dải hàng của nó (nhẹ hơn ~6 lần); đồng hồ kim khỏi chớp thừa; thêm tuỳ chọn kiểu làm mới REAGL/GL16
+notes=Sửa ghi chú Sudoku hiện sai số; máy cờ vua nhanh hơn, nghĩ theo giới hạn thời gian; bố cục Ảnh hết nháy khi pin đổi; bố cục không ảnh hết vẽ thừa

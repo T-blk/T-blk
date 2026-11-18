@@ -124,6 +124,15 @@ tx() {
   _bt=$(( H - $4 - $2 * 14 / 10 )); [ $_bt -lt 0 ] && _bt=0
   "$FB" -q -b -O $(fbcolor_bg "${7:-k}") -t "regular=$_f,px=$2,top=$4,left=$_lx,right=$_r,bottom=$_bt" "$5" >/dev/null 2>&1
 }
+# 8 byte kích thước của ảnh PNG (rộng 4 byte, cao 4 byte) dạng số thập phân. Thử cách nhanh trước;
+# busybox đời cũ có thể không có "od -j -N" -> đọc bằng dd rồi "od -b" (bát phân) và đổi sang thập phân.
+png_bytes() {
+  _pf=$1; _pb=$(od -An -tu1 -j16 -N8 "$_pf" 2>/dev/null); set -- $_pb
+  if [ $# -lt 8 ]; then _pb=""
+    for _o in $(dd if="$_pf" bs=1 skip=16 count=8 2>/dev/null | od -b 2>/dev/null); do case "$_o" in [0-3][0-7][0-7]) _pb="$_pb $(( 0$_o ))" ;; esac; done
+  fi
+  echo $_pb
+}
 # tx_fit KEY PX X Y "chữ" RỘNG [màu] — một dòng, tự thu nhỏ cỡ chữ cho vừa RỘNG (không xuống dòng)
 tx_fit() {
   _fp=$2; [ "${6:-0}" -gt 40 ] || { tx "$1" "$2" "$3" "$4" "$5" l "${7:-k}"; return; }

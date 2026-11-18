@@ -4,7 +4,7 @@
 # In ra:  C ô nền số kiểu ghi_chú lỗi   (nền: w trắng · s đang chọn · h cùng số; kiểu: g đề · u người chơi)
 #         PAD c1..c9 (số lượng mỗi chữ số đã có) · TOP lỗi gợi_ý ghi_chú báo_lỗi mức · WIN giây lỗi gợi_ý
 function peers_clear(i, d,   r, c, br, bc, k, j, m) {
-  r = int(i / 9); c = i % 9; br = int(r / 3) * 3; bc = int(c / 3) * 3; m = 2 ^ (d - 1)
+  r = int(i / 9); c = i % 9; br = int(r / 3) * 3; bc = int(c / 3) * 3; m = POW[d]
   for (k = 0; k < 9; k++) {
     j = r * 9 + k; if (int(N[j] / m) % 2) N[j] -= m
     j = k * 9 + c; if (int(N[j] / m) % 2) N[j] -= m
@@ -45,6 +45,7 @@ function transform(p, s,   map, rr, cc, b, i, k, r, c, sr, sc, tp, ts, rot, t) {
   NEWP = tp; NEWS = ts
 }
 BEGIN {
+  POW[1] = 1; for (i = 2; i <= 9; i++) POW[i] = POW[i - 1] * 2     # 2^(n-1) tính sẵn: awk rút gọn có thể không có phép luỹ thừa
   SEL = -1; NM = 0; AUTO = 1; CHK = 0; T = 0; MIS = 0; HIN = 0; DONE = 0; LV = 2
   for (i = 0; i < 81; i++) { P[i] = 0; S[i] = 0; U[i] = 0; N[i] = 0 }
   while ((getline line < SAVE) > 0) {
@@ -69,7 +70,7 @@ BEGIN {
   if (DONE && ACT != "full" && ACT != "auto") ACT = "none"
   if (ACT == "sel") { if (a >= 0 && a < 81) SEL = a }
   else if (ACT == "num" && SEL >= 0 && P[SEL] == 0 && a >= 1 && a <= 9) {
-    if (NM) { if (U[SEL] == 0) { pushundo(); m = 2 ^ (a - 1); if (int(N[SEL] / m) % 2) N[SEL] -= m; else N[SEL] += m } }
+    if (NM) { if (U[SEL] == 0) { pushundo(); m = POW[a]; if (int(N[SEL] / m) % 2) N[SEL] -= m; else N[SEL] += m } }
     else {
       pushundo(); CHK = 0
       if (U[SEL] == a) U[SEL] = 0

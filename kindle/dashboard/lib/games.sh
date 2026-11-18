@@ -9,25 +9,25 @@ render_games() {
   GM_H=$(( (H - 120) / 3 )); [ $GM_H -gt 240 ] && GM_H=240
   _i=0
   for _g in sudoku chess go; do
-    _y=$(( 100 + _i * (GM_H + 16) ))
+    _y=$(( 100 + _i * (GM_H + 16) )); GM_Y=$_y
     frame $_y 40 $(( W - 80 )) $GM_H 3
     case $_g in
-      sudoku) _ic=$(printf '\357\200\212'); _t="Sudoku"; _d="Dễ · Vừa · Khó · Rất khó — ghi chú, gợi ý, kỷ lục"
-              _s=""; [ -s "$SU_SAVE" ] && grep -q '^DONE 0' "$SU_SAVE" && _s="Đang có ván dở — chạm để chơi tiếp" ;;
-      chess)  _ic=""; _t="Cờ vua"; _d="Chơi với máy (Dễ · Vừa · Khó) hoặc hai người"
-              _s=""; [ -s "$CH_SAVE" ] && grep -q '^ST play' "$CH_SAVE" && _s="Đang có ván dở — chạm để chơi tiếp" ;;
-      go)     _ic=""; _t="Cờ vây"; _d="Bàn 9×9 · 13×13 · 19×19, hai người hoặc với máy"
-              _s=""; [ -s "$GO_SAVE" ] && grep -q '^PH play' "$GO_SAVE" && _s="Đang có ván dở — chạm để chơi tiếp" ;;
+      sudoku) _ic=$(printf '\357\200\212'); GM_T="Sudoku"; GM_D="Dễ · Vừa · Khó · Rất khó — ghi chú, gợi ý, kỷ lục"
+              GM_S=""; [ -s "$SU_SAVE" ] && grep -q '^DONE 0' "$SU_SAVE" && GM_S="Đang có ván dở — chạm để chơi tiếp" ;;
+      chess)  _ic=""; GM_T="Cờ vua"; GM_D="Chơi với máy (Dễ · Vừa · Khó) hoặc hai người"
+              GM_S=""; [ -s "$CH_SAVE" ] && grep -q '^ST play' "$CH_SAVE" && GM_S="Đang có ván dở — chạm để chơi tiếp" ;;
+      go)     _ic=""; GM_T="Cờ vây"; GM_D="Bàn 9×9 · 13×13 · 19×19, hai người hoặc với máy"
+              GM_S=""; [ -s "$GO_SAVE" ] && grep -q '^PH play' "$GO_SAVE" && GM_S="Đang có ván dở — chạm để chơi tiếp" ;;
     esac
-    _ix=70; _iy=$(( _y + GM_H / 2 - 50 ))
+    _ix=70; _iy=$(( GM_Y + GM_H / 2 - 50 ))
     case $_g in
       sudoku) tx sym 90 $_ix $(( _iy - 4 )) "$_ic" l k ;;
       chess) tx chess 130 $(( _ix - 10 )) $(( _iy - 26 )) "$(ch_glyph n)" l k ;;
       go) dot $(( _ix + 34 )) $(( _iy + 34 )) 60 k; dot $(( _ix + 70 )) $(( _iy + 70 )) 60 w; ring $(( _ix + 70 )) $(( _iy + 70 )) 60 k ;;
     esac
-    tx semi 44 210 $(( _y + GM_H / 2 - 62 )) "$_t" l k
-    txw reg 22 210 $(( _y + GM_H / 2 - 2 )) "$_d" $(( W - 290 )) 64 m
-    [ -n "$_s" ] && tx semi 20 210 $(( _y + GM_H - 42 )) "$_s" l k $(( W - 290 ))
+    tx semi 44 210 $(( GM_Y + GM_H / 2 - 62 )) "$GM_T" l k
+    txw reg 22 210 $(( GM_Y + GM_H / 2 - 2 )) "$GM_D" $(( W - 290 )) 64 m
+    [ -n "$GM_S" ] && tx semi 20 210 $(( GM_Y + GM_H - 42 )) "$GM_S" l k $(( W - 290 ))
     _i=$(( _i + 1 ))
   done
   refresh 1

@@ -54,13 +54,16 @@ su_cell() { # ô nền số kiểu ghi_chú lỗi
     else txcap light $(( CS * 44 / 100 )) $(( _x + CS / 2 + 1 )) $(( _y + CS * 28 / 100 )) "$3" c $_col; fi
     [ "$6" = 1 ] && [ "$2" = s ] && { rect $(( _x + 6 )) $(( _y + CS - 12 )) $(( CS - 11 )) 4 WHITE; }   # ô lỗi đang chọn: gạch trắng
   elif [ "$5" != 0 ]; then
-    _n=$5; _d=1; _sw=$(( CS / 3 ))
-    while [ $_n -gt 0 ]; do
-      if [ $(( _n % 2 )) = 1 ]; then
-        txcap semi $(( CS * 17 / 100 )) $(( _x + 2 + ((_d - 1) % 3) * _sw + _sw / 2 )) $(( _y + 7 + ((_d - 1) / 3) * _sw )) "$_d" c k
+    # LƯU Ý: không dùng tên biến ngắn kiểu _n ở đây — các hàm vẽ chữ (tx -> twv -> tw_sh) cũng dùng _n, _c, _r, _s…
+    # và shell không có biến cục bộ, nên sẽ bị ghi đè giữa vòng lặp (ghi chú hiện sai số).
+    SU_NBITS=$5; SU_ND=1; _sw=$(( CS / 3 )); SU_CX=$_x; SU_CY=$_y
+    while [ $SU_NBITS -gt 0 ] && [ $SU_ND -le 9 ]; do
+      if [ $(( SU_NBITS % 2 )) = 1 ]; then
+        txcap semi $(( CS * 17 / 100 )) $(( SU_CX + 2 + ((SU_ND - 1) % 3) * (CS / 3) + CS / 6 )) $(( SU_CY + 7 + ((SU_ND - 1) / 3) * (CS / 3) )) "$SU_ND" c k
       fi
-      _n=$(( _n / 2 )); _d=$(( _d + 1 ))
+      SU_NBITS=$(( SU_NBITS / 2 )); SU_ND=$(( SU_ND + 1 ))
     done
+    _x=$SU_CX; _y=$SU_CY
   fi
   TXBG=""
   # vùng cần làm mới

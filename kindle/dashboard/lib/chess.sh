@@ -31,13 +31,13 @@ ch_sq() { # ô_máy quân tối chọn đích cuối chiếu gợiý
   [ $(( _x + SQ )) -gt $CRX1 ] && CRX1=$(( _x + SQ )); [ $(( _y + SQ )) -gt $CRY1 ] && CRY1=$(( _y + SQ ))
 }
 ch_coords() { # chữ a-h, số 1-8 bên lề bàn
-  _k=0
-  while [ $_k -lt 8 ]; do
-    _f=$_k; _rk=$(( 8 - _k )); [ "$CH_FLIP" = 1 ] && { _f=$(( 7 - _k )); _rk=$(( _k + 1 )); }
-    _fl=$(echo abcdefgh | cut -c$(( _f + 1 )))
-    tx reg 14 $(( BX + _k * SQ + SQ - 12 )) $(( BY + 8 * SQ - 20 )) "$_fl" l s
-    tx reg 14 $(( BX + 3 )) $(( BY + _k * SQ + 2 )) "$_rk" l s
-    _k=$(( _k + 1 ))
+  CH_K=0                                      # tên biến riêng (CH_*): các hàm vẽ chữ dùng _k, _f, _r… và sẽ ghi đè
+  while [ $CH_K -lt 8 ]; do
+    CH_F=$CH_K; CH_RK=$(( 8 - CH_K )); [ "$CH_FLIP" = 1 ] && { CH_F=$(( 7 - CH_K )); CH_RK=$(( CH_K + 1 )); }
+    CH_FL=$(echo abcdefgh | cut -c$(( CH_F + 1 )))
+    tx reg 14 $(( BX + CH_K * SQ + SQ - 12 )) $(( BY + 8 * SQ - 20 )) "$CH_FL" l s
+    tx reg 14 $(( BX + 3 )) $(( BY + CH_K * SQ + 2 )) "$CH_RK" l s
+    CH_K=$(( CH_K + 1 ))
   done
 }
 ch_status_text() { # lượt trạngthái chiếu chếđộ mức màungười

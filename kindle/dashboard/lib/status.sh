@@ -49,7 +49,7 @@ status_image() { # -> đường dẫn ảnh (ảnh riêng của bạn ưu tiên,
   if [ -n "$l" ]; then n=$(echo "$l" | wc -l); echo "$l" | sed -n "$(( (ST_SEED + ST_HOFF) % n + 1 ))p"; return; fi
   echo "$DIR/ui/status/$ST_ID.png"
 }
-png_size() { set -- $(od -An -tu1 -j16 -N8 "$1" 2>/dev/null); [ $# -ge 8 ] && echo "$(( $3 * 256 + $4 )) $(( $7 * 256 + $8 ))" || echo "560 420"; }
+png_size() { set -- $(png_bytes "$1"); [ $# -ge 8 ] && echo "$(( $3 * 256 + $4 )) $(( $7 * 256 + $8 ))" || echo "560 420"; }
 
 status_topline() { # giờ + đã bao lâu (vẽ lại mỗi phút, chỉ vùng nhỏ này)
   e=$(status_elapsed)
