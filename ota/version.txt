@@ -1,8 +1,8 @@
-version=2026.11.18.04
-sha256=876dc1b964145511bf811eebf488b8ae2c25dd26b7b5b5947a6b78328c50d35f
-size=4782270
-core_sha=4e774055d770955bffb0e13bfd39223654378b35c7cf853aa5f9ed69b33e9620
-core_size=351931
+version=2026.11.18.05
+sha256=ffede9a63afd660460a6a747c8d34813ad9167ebbd1e2f12ca4fb95739e2f2f8
+size=4782330
+core_sha=6376208b39f20442f1bfa42d0595534104252524d17ebfb4143db82a50ec6367
+core_size=351991
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Sửa lỗi đồng hồ: khi đổi phút, chữ số mới đôi khi chỉ hiện một nửa và còn sót nét số cũ (giờ chờ màn hình xoá trắng xong mới vẽ số mới)
+notes=Đồng hồ và ô pin: chờ màn hình vẽ xong hẳn trước khi vẽ tiếp, tránh chữ số hiện thiếu hoặc còn sót nét cũ

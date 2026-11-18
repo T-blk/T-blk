@@ -84,7 +84,7 @@ bat_fast() {
   BF_x0=$BF_ox; [ $BF_X -lt $BF_x0 ] && BF_x0=$BF_X; BF_x0=$(( BF_x0 - 3 ))
   [ $BF_x0 -ge $(( B_STATUS - 72 )) ] || return 1            # chữ mới dài hơn, sát dòng ngày -> vẽ lại cả màn hình cho chắc
   BF_w=$(( B_STATUS - 18 - BF_x0 ))
-  refresh 0 "top=16,left=$BF_x0,width=$BF_w,height=40"
+  refresh_wait "top=16,left=$BF_x0,width=$BF_w,height=40"   # chờ xong rồi mới vẽ tiếp chỗ khác (lib/opt.sh)
   log "pin $BATT%: chỉ vẽ lại ô pin"
 }
 slot() { echo "$1"; }                           # tiện đọc
