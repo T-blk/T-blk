@@ -1,8 +1,8 @@
-version=2026.11.18.06
-sha256=619a746cdeda417f081f075e61e9f09b8317170602b90cdf6edde365a1f7eb5e
-size=4782591
-core_sha=01a771395a6214a21416c09464a0ace943a324646e09bcd42dedf4a6b0576e2a
-core_size=352286
+version=2026.11.18.07
+sha256=68cf624ab02368f648a093a2548dedb7d8da2f5cf2acbfc1b1655a684c431c84
+size=4782723
+core_sha=27f636e1d16e67d78b5b515b774b80ac4c138d483fc0e7af47bf3fd366bb1cef
+core_size=352464
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Ngủ sâu ban đêm an toàn hơn: chỉ bật được sau khi Thử ngủ sâu 1 phút báo chạy tốt; vẽ xong dòng báo rồi mới ngủ
+notes=Đồng hồ: đổi nhiều chữ số cùng lúc (vd 19:59 sang 20:00) nhanh hơn, chỉ chờ màn hình 2 lần thay vì 2 lần cho mỗi chữ số; bộ đo máy chậm không tính nhầm thời gian chờ màn hình

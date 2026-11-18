@@ -70,34 +70,37 @@ clock_shape() { # lệnh_vẽ...
   cmp -l /tmp/dash_ca /tmp/dash_cb 2>/dev/null | head -n 60000 | \
     awk -v S=$FB_STRIDE -v L=$_rl -v R=$(( _rl + _rw )) -v CAP=60000 -f "$DIR/lib/cols.awk" > /tmp/dash_ccols 2>/dev/null
   rm -f /tmp/dash_ca
+  cs_time                                                                       # đo phần so (chưa tính thời gian chờ màn hình)
   CS_segs=$(cat /tmp/dash_ccols 2>/dev/null)
   case "$CS_segs" in *FULL*) rm -f /tmp/dash_cb; return 1 ;; esac
   [ $(echo "$CS_segs" | wc -l) -gt 6 ] && { rm -f /tmp/dash_cb; return 1; }       # đổi lắt nhắt nhiều chỗ: cách cũ
-  if [ -z "$CS_segs" ]; then rm -f /tmp/dash_cb; cs_time; return 0; fi        # không có gì đổi
+  if [ -z "$CS_segs" ]; then rm -f /tmp/dash_cb; return 0; fi                   # không có gì đổi
   CS_fl=0; [ "${CLOCK_CLEAN_MIN:-10}" -gt 0 ] && [ $(( _m % ${CLOCK_CLEAN_MIN:-10} )) = 0 ] && CS_fl=1
-  CS_regs=""
+  CS_regs=""; CS_ul=$W; CS_ur=0
   while read -r CS_l CS_w; do
     case "$CS_l$CS_w" in ''|*[!0-9]*) continue ;; esac
     CS_l=$(( CS_l - 4 )); CS_w=$(( CS_w + 8 ))                                   # chừa viền cho sạch nét cũ
     [ $CS_l -lt $_rl ] && { CS_w=$(( CS_w - (_rl - CS_l) )); CS_l=$_rl; }
     [ $(( CS_l + CS_w )) -gt $(( _rl + _rw )) ] && CS_w=$(( _rl + _rw - CS_l ))
     [ $(( CS_l + CS_w )) -gt $W ] && CS_w=$(( W - CS_l ))
-    [ $CS_w -gt 0 ] && CS_regs="$CS_regs top=$_rt,left=$CS_l,width=$CS_w,height=$CS_h"
+    [ $CS_w -gt 0 ] || continue
+    CS_regs="$CS_regs $CS_l:$CS_w"
+    [ $CS_l -lt $CS_ul ] && CS_ul=$CS_l; [ $(( CS_l + CS_w )) -gt $CS_ur ] && CS_ur=$(( CS_l + CS_w ))
   done < /tmp/dash_ccols
+  [ -n "$CS_regs" ] || { rm -f /tmp/dash_cb; return 0; }
+  # Vùng gộp từ chữ số đổi đầu tiên tới cuối cùng. Làm mới thường (không nháy) chỉ đổi những điểm ảnh thật sự khác,
+  # nên chữ số không đổi nằm giữa vẫn đứng yên — mà chỉ phải chờ màn hình 2 lần thay vì 2 lần cho MỖI chữ số.
+  CS_u="top=$_rt,left=$CS_ul,width=$(( CS_ur - CS_ul )),height=$CS_h"
   if [ $CS_fl = 1 ]; then                                                       # mỗi CLOCK_CLEAN_MIN phút: nháy đen riêng chữ số đổi
-    for CS_r in $CS_regs; do refresh_wait "$CS_r" 1; done
+    for CS_r in $CS_regs; do refresh_wait "top=$_rt,left=${CS_r%:*},width=${CS_r#*:},height=$CS_h" 1; done
   else
-    for CS_r in $CS_regs; do                                                    # 1) xoá trắng riêng chữ số đổi
-      CS_r2=${CS_r#top=}; CS_t=${CS_r2%%,*}; CS_r2=${CS_r2#*left=}; CS_l=${CS_r2%%,*}; CS_r2=${CS_r2#*width=}; CS_w=${CS_r2%%,*}
-      box $CS_t $CS_l $CS_w $CS_h WHITE
-      refresh_wait "$CS_r"                    # CHỜ màn hình xoá trắng xong hẳn (xem refresh_wait)
-    done
-    usleep 100000 2>/dev/null                  # thêm chút dư cho chắc
+    for CS_r in $CS_regs; do box $_rt ${CS_r%:*} ${CS_r#*:} $CS_h WHITE; done       # 1) xoá trắng riêng chữ số đổi
+    refresh_wait "$CS_u"                       #    và CHỜ màn hình xoá xong hẳn (xem refresh_wait)
+    usleep 100000 2>/dev/null                  #    thêm chút dư cho chắc
     dd if=/tmp/dash_cb of="$FBDEV" bs=$FB_STRIDE seek=$_rt count=$CS_h conv=notrunc 2>/dev/null   # 2) chép lại số mới
-    for CS_r in $CS_regs; do refresh_wait "$CS_r"; done      # chờ xong: ngay sau đây có thể vẽ lại cả màn hình
+    refresh_wait "$CS_u"                       #    chờ xong: ngay sau đây có thể vẽ lại cả màn hình
   fi
   rm -f /tmp/dash_cb
-  cs_time
   return 0
 }
 # Làm mới (không nháy) rồi CHỜ bộ điều khiển e-ink xử lý xong (fbink -w). Bắt buộc trước khi ghi đè cùng vùng
