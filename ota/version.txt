@@ -1,8 +1,8 @@
-version=2026.11.18.03
-sha256=53ab4360d938bed1eff54229dae0b203419fc79a2b5b22fb04899e5634e5bf42
-size=4781957
-core_sha=3effe9ab14f8f53ed0a7cc16a6db018995192f1e03c27bd2f2df467411ef6d3f
-core_size=351614
+version=2026.11.18.04
+sha256=876dc1b964145511bf811eebf488b8ae2c25dd26b7b5b5947a6b78328c50d35f
+size=4782270
+core_sha=4e774055d770955bffb0e13bfd39223654378b35c7cf853aa5f9ed69b33e9620
+core_size=351931
 assets_sha=9a65f012b2e695de3431a829d296f10ec41d015b23c992695c923dd6720995ca
 assets_size=4426250
-notes=Tiết kiệm pin hơn: pin đổi chỉ vẽ lại ô số pin, đồng hồ chỉ vẽ lại chữ số đổi, bố cục không có ảnh khỏi vẽ lại mỗi giờ, so vùng đổi nhanh hơn. Thêm nút Cài đặt > Pin & đèn > Dùng gợi ý tiết kiệm pin. Tắt được tất cả: Cài đặt > Pin & đèn > Tối ưu pin mới = Tắt
+notes=Sửa lỗi đồng hồ: khi đổi phút, chữ số mới đôi khi chỉ hiện một nửa và còn sót nét số cũ (giờ chờ màn hình xoá trắng xong mới vẽ số mới)

@@ -89,14 +89,24 @@ clock_shape() { # lệnh_vẽ...
   else
     for CS_r in $CS_regs; do                                                    # 1) xoá trắng riêng chữ số đổi
       CS_r2=${CS_r#top=}; CS_t=${CS_r2%%,*}; CS_r2=${CS_r2#*left=}; CS_l=${CS_r2%%,*}; CS_r2=${CS_r2#*width=}; CS_w=${CS_r2%%,*}
-      box $CS_t $CS_l $CS_w $CS_h WHITE; refresh 0 "$CS_r"
+      box $CS_t $CS_l $CS_w $CS_h WHITE
+      refresh_wait "$CS_r"                    # CHỜ màn hình xoá trắng xong hẳn (xem refresh_wait)
     done
+    usleep 100000 2>/dev/null                  # thêm chút dư cho chắc
     dd if=/tmp/dash_cb of="$FBDEV" bs=$FB_STRIDE seek=$_rt count=$CS_h conv=notrunc 2>/dev/null   # 2) chép lại số mới
     for CS_r in $CS_regs; do refresh 0 "$CS_r"; done
   fi
   rm -f /tmp/dash_cb
   cs_time
   return 0
+}
+# Làm mới (không nháy) rồi CHỜ bộ điều khiển e-ink xử lý xong (fbink -w). Bắt buộc trước khi ghi đè cùng vùng
+# trong bộ nhớ màn hình: lệnh làm mới chạy ngầm ~0,2 giây và đọc bộ nhớ trong lúc chạy; ghi số mới vào ngay
+# thì nó đọc lẫn nửa cũ nửa mới -> chữ số hiện thiếu một nửa, còn sót nét số cũ (lỗi bản 18.03).
+refresh_wait() { # vùng
+  [ "$DIFF_DRAW" = 1 ] && return 0
+  CS_inv=""; [ "$NIGHT_INVERT" = 1 ] && is_night && CS_inv="-H"
+  "$FB" -q -w $CS_inv -s $1 >/dev/null 2>&1 || { refresh 0 "$1"; usleep 300000 2>/dev/null || sleep 1; }
 }
 cs_time() { # quá chậm 2 lần liền (>= 4 giây) -> tự tắt cho phiên này, dùng cách cũ
   CS_el=$(( $(date +%s) - CS_t0 ))
